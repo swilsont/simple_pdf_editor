@@ -397,7 +397,7 @@ input[type=range]{width:100%;accent-color:var(--cut)}
 
 <!-- ── 4. Aplicación ─────────────────────────────────────────────────────── -->
 <script>/*! Editor de PDF — quince herramientas para PDF que corren en tu navegador
- * MIT License · https://github.com/swilsont/simple_pdf_editor/
+ * MIT License · https://swilsont.github.io/simple_pdf_editor/
  *
  * Incrustado en este archivo:
  *   pdf-lib — MIT — https://github.com/Hopding/pdf-lib
@@ -463,7 +463,7 @@ var T = {
     /* EN: All {0} files together */
     allTogether: 'Los {0} archivos juntos',
     /* EN: result.zip — filename, keep it lowercase and extension-safe */
-    zipFallback: 'cajaDescargas.zip',
+    zipFallback: 'resultado.zip',
     /* EN: {0} pages · {1} — shown in the top bar next to the filename */
     docSpecs: '{0} págs · {1}',
     /* EN: {0} files */
@@ -812,7 +812,7 @@ var T = {
     perPage: 'Página por página (imágenes)',
     /* EN: Rewrites the file's internal structure with better compression. It does not touch a single pixel, so the result looks exactly the same. It works wonders on PDFs from scanners and older systems, and does nothing at all on files that were already well compressed. Needs an external engine ({0}). */
     losslessHint: 'Reescribe la estructura interna del archivo con mejor compresión. No toca ni un píxel, ' +
-                  'así que el cajaDescargas se ve exactamente igual. Hace maravillas con los PDF de escáneres y ' +
+                  'así que el resultado se ve exactamente igual. Hace maravillas con los PDF de escáneres y ' +
                   'sistemas antiguos, y no hace absolutamente nada con los que ya venían bien comprimidos. ' +
                   'Necesita un motor externo ({0}).',
     /* EN: Reduces image resolution and quality, page by page. Needs a bigger engine ({0}) and does change how the document looks. */
@@ -870,9 +870,9 @@ var T = {
     /* EN: This would come out heavier than the original */
     biggerTitle: 'Así quedaría más pesado que el original',
     /* EN: The result weighed {0} against the {1} you already had, so we are handing yours back untouched. It usually happens when the PDF is nearly all text, when it was already compressed, or when several pages share the same image and ended up in different groups: then the file has to store one copy per group. Try a single level for every page. */
-    biggerBody: 'El cajaDescargas pesaba {0} contra los {1} que ya tenías, así que te devolvemos el tuyo sin tocar. ' +
+    biggerBody: 'El resultado pesaba {0} contra los {1} que ya tenías, así que te devolvemos el tuyo sin tocar. ' +
                 'Suele pasar cuando el PDF es casi todo texto, cuando ya venía comprimido, o cuando varias páginas ' +
-                'comparten la misma imagen y quedaron en grupos distintos: ahí el archivo tiene que guardar una copiaBuffer ' +
+                'comparten la misma imagen y quedaron en grupos distintos: ahí el archivo tiene que guardar una copia ' +
                 'por grupo. Prueba con un solo nivel para todas.',
     /* EN: From {0} down to {1} — {2}% smaller, compressing {3} of {4} pages across {5} {6} */
     resultNote: 'De {0} a {1} — {2}% menos, comprimiendo {3} de {4} páginas en {5} {6}',
@@ -1224,7 +1224,7 @@ var T = {
     /* EN: Lock the fields so they can no longer be edited */
     flatten: 'Dejar los campos fijos, para que ya no se puedan editar',
     /* EN: Once locked there is no going back: keep the original if you might need to change it. */
-    flattenHint: 'Una vez fijos no hay vuelta atrás: mantén la copiaBuffer del original por si tienes que corregir algo después.',
+    flattenHint: 'Una vez fijos no hay vuelta atrás: mantén la copia del original por si tienes que corregir algo después.',
     /* EN: Download the edited version */
     action: 'Descargar versión modificada',
     /* EN: _filled — filename suffix */
