@@ -10,7 +10,7 @@ Es la idea de [iLovePDF](https://www.ilovepdf.com/) sin el servidor: los mismos 
 
 **Un solo archivo HTML.** Lo descargas, le das doble clic y funciona. No hay `npm install`, ni build, ni servidor, ni instalador.
 
-**625 KB** (244 KB comprimidos con gzip). De eso, 513 KB son pdf-lib incrustado: el 68% del archivo es la librería que hace el trabajo pesado, y viene adentro justamente para que once de las quince herramientas funcionen sin conexión.
+**625 KB** (244 KB comprimidos con gzip). De eso, 513 KB son pdf-lib incrustado: el 82% del archivo es la librería que hace el trabajo pesado, y viene adentro justamente para que once de las quince herramientas funcionen sin conexión.
 
 **Sin frameworks.** Sin React, sin Vue, sin Bootstrap, sin jQuery. Todo el JavaScript vive en un cierre y no publica nada al ámbito global.
 
@@ -42,11 +42,11 @@ Es la idea de [iLovePDF](https://www.ilovepdf.com/) sin el servidor: los mismos 
 
 ## Cómo usarlo
 
-1. Descarga [`editor-pdf.min.html`](editor-pdf.min.html)
-2. Doble clic
-3. Arrastra un PDF a la ventana
+**Pruébalo sin instalar nada:** [swilsont.github.io/simple_pdf_editor](https://swilsont.github.io/simple_pdf_editor/)
 
-También puedes servirlo desde cualquier hosting estático —GitHub Pages, Netlify, una carpeta en tu servidor— porque no necesita nada del lado del servidor. **Si vas a usar las herramientas con motor externo, sírvelo por HTTPS**: los binarios WebAssembly no cargan de forma confiable desde `file://`.
+**O quédatelo:** [descarga `editor-pdf.min.html`](https://raw.githubusercontent.com/swilsont/simple_pdf_editor/main/editor-pdf.min.html), dale doble clic y arrastra un PDF a la ventana.
+
+Las dos formas son la misma página, pero no hacen exactamente lo mismo. Abierto con doble clic —o sea, desde `file://`— funcionan las once herramientas que no necesitan motor externo; las otras cuatro no, porque los binarios WebAssembly no cargan de forma confiable desde ahí. **Si las necesitas, sírvelo por HTTPS**: desde el enlace de arriba, o desde cualquier hosting estático —GitHub Pages, Netlify, una carpeta en tu servidor— porque no requiere nada del lado del servidor.
 
 Un archivo se puede soltar en cualquier parte de la ventana, no solo sobre el recuadro punteado. Las miniaturas tienen un selector de tamaño de 1 a 10 arriba a la izquierda, y esa preferencia se recuerda entre sesiones.
 
