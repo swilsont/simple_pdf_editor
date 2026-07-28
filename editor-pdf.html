@@ -262,6 +262,11 @@ input[type=range]{width:100%;accent-color:var(--cut)}
 .items{display:flex;flex-direction:column;gap:6px}
 .item{display:flex;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--rule);border-radius:2px;background:#fff}
 .item .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+/* object-fit:contain conserva la proporción sin recortar, que es lo que
+   importa acá: la miniatura está para reconocer la foto de un vistazo, no
+   para lucir pareja. El hueco vacío queda del color del papel. */
+.item .mini{flex:0 0 auto;width:46px;height:46px;object-fit:contain;
+  background:var(--sheet);border:1px solid var(--rule);border-radius:2px}
 .item .sz{font-size:11.5px;color:var(--ink-soft)}
 .item.drag{opacity:.4}
 .item.dropto{border-color:var(--marker);box-shadow:inset 0 0 0 1px var(--marker)}
@@ -2772,10 +2777,34 @@ HERR.imagenes = {
         pend.push(f.arrayBuffer().then(function(b){
           var it = {nombre:f.name, tipo:f.type, u8:new Uint8Array(b), q:null, w:0, h:0};
           tanda.push(it);
-          /* medir la imagen: sin sus píxeles no hay cómo anticipar los ppp */
+          /* Se decodifica una sola vez y se aprovecha para dos cosas: medir la
+             imagen —sin sus píxeles no hay cómo anticipar los ppp— y sacarle
+             una miniatura.
+
+             La miniatura se guarda como data URL propia de 92 px y NO como el
+             objectURL del original. Es a propósito: dejar el objectURL vivo en
+             un <img> mantiene decodificada la imagen completa por cada fila, y
+             con veinte fotos de doce megapíxeles eso son cientos de megas de
+             mapa de bits. Así, además, no hay ningún URL que revocar cuando se
+             quita una imagen de la lista. */
           return new Promise(function(ok){
             var url = URL.createObjectURL(new Blob([it.u8], {type:it.tipo})), im = new Image();
-            im.onload  = function(){ it.w = im.naturalWidth; it.h = im.naturalHeight; URL.revokeObjectURL(url); ok(); };
+            im.onload = function(){
+              it.w = im.naturalWidth; it.h = im.naturalHeight;
+              try {
+                var lado = 92, e = Math.min(lado/it.w, lado/it.h, 1);
+                var cv = el('canvas');
+                cv.width  = Math.max(1, Math.round(it.w*e));
+                cv.height = Math.max(1, Math.round(it.h*e));
+                var cx = cv.getContext('2d');
+                /* fondo blanco: el JPEG no tiene canal alfa y las zonas
+                   transparentes saldrían negras */
+                cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height);
+                cx.drawImage(im, 0, 0, cv.width, cv.height);
+                it.mini = cv.toDataURL('image/jpeg', 0.72);
+              } catch(err){ /* sin miniatura se sigue igual: es un adorno útil, no un requisito */ }
+              URL.revokeObjectURL(url); ok();
+            };
             im.onerror = function(){ URL.revokeObjectURL(url); ok(); };
             im.src = url;
           });
@@ -2794,8 +2823,12 @@ HERR.imagenes = {
       caja.innerHTML = '';
       lista.forEach(function(it, i){
         var r = el('div','item',
-          '<span class="handle">⣿</span><span class="nm"></span>' +
+          '<span class="handle">⣿</span><img class="mini" alt=""><span class="nm"></span>' +
           '<span class="dim"></span><span class="sz mono"></span>');
+        /* alt vacío a propósito: el nombre del archivo va justo al lado, así que
+           para un lector de pantalla la miniatura es decorativa y repetirlo
+           sería ruido */
+        if(it.mini) $('.mini', r).src = it.mini;
         $('.nm', r).textContent = it.nombre;
         $('.sz', r).textContent = pesoLegible(it.u8.length);
         var v = ppp(it), dim = $('.dim', r);
