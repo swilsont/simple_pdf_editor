@@ -182,6 +182,13 @@ input[type=range]{width:100%;accent-color:var(--cut)}
    previa: sin él, un absolute encima de la miniatura se anclaría a la hoja
    entera y se saldría sobre el pie y el número de página. */
 .sheet .thumb{position:relative;display:block;overflow:hidden}
+/* Una miniatura girada un cuarto de vuelta ocupa el espacio al revés: lo que
+   era alto pasa a ser ancho. Como `transform` no altera el reparto del espacio
+   —el navegador sigue reservando la caja sin girar—, el dibujo se sale del
+   marco y `overflow:hidden` lo recorta. Se resuelve en dos partes: la tarjeta
+   adopta la proporción invertida vía `aspect-ratio`, y el dibujo pasa a
+   posición absoluta para dejar de mandar sobre el alto. */
+.sheet .thumb.girada canvas{position:absolute;left:50%;top:50%}
 /* Vista previa del resultado: la hoja toma la proporción del papel destino y
    la página original se coloca dentro, a escala y con sus márgenes. */
 .sheet .thumb.destino{background:var(--sheet)}
@@ -2021,15 +2028,38 @@ function rejilla(host, u8, opt){
     observa();
   }
 
+  /* Muestra una miniatura girada, encogiéndola lo justo para que quepa.
+
+     Con un cuarto de vuelta, un dibujo de w × h ocupa h × w. Para que entre en
+     un marco de ancho A hay que encogerlo por w/h, y entonces el alto que
+     necesita el marco pasa a ser A·w/h — de ahí la proporción invertida. */
+  function pintaGiro(marco, g){
+    if(!marco) return;
+    var c = $('canvas', marco);
+    /* Mientras no haya dibujo solo está el marcador de posición, un recuadro
+       gris: girarlo no comunica nada y no se conocen sus proporciones. Se deja
+       para cuando llegue la miniatura, que vuelve a llamar acá. */
+    if(!c){ marco.classList.remove('girada'); marco.style.aspectRatio = ''; return; }
+    var cuarto = g % 180 !== 0;
+    marco.classList.toggle('girada', cuarto);
+    c.style.transformOrigin = 'center';
+    if(cuarto){
+      var w = c.width || 1, h = c.height || 1;
+      marco.style.aspectRatio = h + ' / ' + w;
+      c.style.transform = 'translate(-50%,-50%) rotate(' + g + 'deg) scale(' + (w/h) + ')';
+    } else {
+      marco.style.aspectRatio = '';
+      c.style.transform = g ? 'rotate(' + g + 'deg)' : '';
+    }
+  }
+
   /* El giro es acumulativo y se guarda aparte del PDF: acá solo se rota la
      miniatura por CSS, que es instantáneo. El PDF se toca recién al guardar. */
   function gira(idx, g){
     api.giro[idx] = ((api.giro[idx] || 0) + g + 360) % 360;
     var t = tarjetas.filter(function(x){ return +x.dataset.idx === idx; })[0];
     if(t){
-      var c = $('canvas', t) || $('.ph', t);
-      c.style.transform = api.giro[idx] ? 'rotate(' + api.giro[idx] + 'deg)' : '';
-      c.style.transformOrigin = 'center';
+      pintaGiro($('.thumb', t), api.giro[idx]);
       $('figcaption', t).textContent = api.giro[idx]
         ? fmt(T.grid.pageRotated, idx + 1, api.giro[idx])
         : fmt(T.grid.page, idx + 1);
@@ -2072,10 +2102,7 @@ function rejilla(host, u8, opt){
       return pg.render({canvasContext: cv.getContext('2d'), viewport: vp}).promise.then(function(){
         var ph = $('.ph', tarj);
         if(ph) ph.parentNode.replaceChild(cv, ph);
-        if(api.giro[idx]){
-          cv.style.transform = 'rotate(' + api.giro[idx] + 'deg)';
-          cv.style.transformOrigin = 'center';
-        }
+        if(api.giro[idx]) pintaGiro(tarj.querySelector('.thumb'), api.giro[idx]);
         /* la capa se rehace ahora que la miniatura tiene su alto definitivo:
            antes medía contra el marcador de posición y salía descuadrada */
         if(opt.capa) opt.capa(idx, $('.thumb', tarj));
