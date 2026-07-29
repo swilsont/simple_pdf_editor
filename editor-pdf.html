@@ -181,7 +181,60 @@ input[type=range]{width:100%;accent-color:var(--cut)}
 /* El marco existe solo para dar un contenedor posicionado a la capa de vista
    previa: sin él, un absolute encima de la miniatura se anclaría a la hoja
    entera y se saldría sobre el pie y el número de página. */
-.sheet .thumb{position:relative;display:block}
+.sheet .thumb{position:relative;display:block;overflow:hidden}
+/* Vista previa del resultado: la hoja toma la proporción del papel destino y
+   la página original se coloca dentro, a escala y con sus márgenes. */
+.sheet .thumb.destino{background:var(--sheet)}
+.sheet .thumb.destino canvas,.sheet .thumb.destino .ph{position:absolute;aspect-ratio:auto}
+/* Vista previa de «varias páginas por hoja»: la tarjeta ES la hoja de salida y
+   cada celda una de las páginas agrupadas. Todo va en porcentajes para que
+   funcione con cualquier tamaño de miniatura sin recalcular nada. */
+.hoja{position:relative;display:block;background:var(--sheet)}
+.hoja .celda{position:absolute;overflow:hidden}
+.hoja .celda.borde{outline:1px solid var(--rule);outline-offset:-1px}
+/* El lienzo se centra en posición absoluta y NO como elemento flexible. Siendo
+   flexible, flexbox le encoge el ancho para que quepa sin tocarle el alto, y una
+   página vertical dentro de una celda apaisada salía estirada. Con `absolute`
+   queda fuera del reparto de flex y conserva las medidas que le fija el JS. */
+.hoja .celda canvas{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:block}
+.hoja .celda .hueco{width:100%;height:100%;background:var(--sheet)}
+/* Pantalla partida del formulario: campos a la izquierda, página a la derecha.
+   El divisor cambia el flex-basis del lado izquierdo; el derecho toma el resto,
+   así que basta con un porcentaje para repartir el ancho. */
+.split{display:flex;align-items:stretch;border:1px solid var(--rule);border-radius:2px;
+  overflow:hidden;background:var(--panel);min-height:360px}
+.split .lado{overflow:auto;min-width:0}
+.split .campos{flex:0 0 46%;padding:14px;display:flex;flex-direction:column;gap:12px}
+.split .vista{flex:1 1 auto;background:var(--tape);padding:14px;text-align:center}
+.split .divisor{flex:0 0 10px;cursor:col-resize;background:var(--rule);position:relative;touch-action:none}
+.split .divisor::after{content:"";position:absolute;left:3.5px;top:50%;width:3px;height:36px;
+  margin-top:-18px;border-radius:2px;background:var(--ink-soft);opacity:.55}
+.vistaPag{position:relative;display:inline-block;max-width:100%}
+.vistaPag canvas{display:block;max-width:100%;height:auto;box-shadow:0 2px 12px rgba(0,0,0,.45)}
+/* el recuadro del campo que se está editando: sin él, la vista salta de página
+   y uno pierde de vista dónde estaba escribiendo */
+/* Cada valor del formulario, dibujado encima de la página. `pre` conserva los
+   espacios que el usuario escriba y el desbordamiento se recorta al recuadro,
+   igual que hace un lector de PDF con un texto que no cabe. */
+.vistaPag .val{position:absolute;display:flex;align-items:center;overflow:hidden;
+  padding:0 2px;color:#111;line-height:1;white-space:pre;cursor:pointer;
+  font-family:Helvetica,Arial,'Helvetica Neue',sans-serif}
+.vistaPag .val:hover{background:rgba(46,93,138,.12)}
+/* los bloques van uno bajo otro, con aire entre páginas */
+.split + .split{margin-top:14px}
+.vistaPag .val.centro{justify-content:center;padding:0}
+/* el recuadro del campo que se está editando: sin él, la vista salta de página
+   y uno pierde de vista dónde estaba escribiendo */
+.vistaPag .val.foco{outline:2px solid var(--cut);outline-offset:0;
+  background:rgba(192,57,43,.10);border-radius:2px}
+.vista .pie{color:rgba(231,228,220,.6);font-size:11.5px;letter-spacing:.05em;
+  text-transform:uppercase;font-weight:600;margin-top:9px}
+.vista .pie.cargando{color:rgba(231,228,220,.35)}
+@media (max-width:760px){
+  .split{flex-direction:column;min-height:0}
+  .split .campos{flex:1 1 auto}
+  .split .divisor{display:none}
+}
 .sheet .wmL{position:absolute;left:0;top:0;right:0;bottom:0;overflow:hidden;pointer-events:none}
 .sheet .wmL span,.sheet .wmL img{position:absolute;white-space:nowrap;line-height:1;transform-origin:center}
 .sheet .ph{aspect-ratio:1/1.3;height:auto}   /* proporción aproximada de un A4 */
@@ -1163,6 +1216,10 @@ var T = {
     frame: 'Dibujar un recuadro alrededor de cada página',
     /* EN: {0} pages become {1} sheets. */
     summary: '{0} páginas se vuelven {1} hojas.',
+    /* EN: These are the sheets that will come out, all of them, exactly as they will be arranged. */
+    previewNote: 'Estas son las hojas que van a salir, todas, tal como quedarán repartidas.',
+    /* EN: sheet {0} of {1} */
+    sheetOf: 'hoja {0} de {1}',
     /* EN: Download the edited version */
     action: 'Descargar versión modificada',
     /* EN: _grouped — filename suffix */
@@ -1195,6 +1252,9 @@ var T = {
                 'a la izquierda en las páginas impares y a la derecha en las pares, para que las dos caras ' +
                 'calcen al imprimir. Apagado, los cuatro márgenes se aplican igual en todas las páginas, ' +
                 'que es lo que conviene si solo lo vas a leer en pantalla o a imprimir por un lado.',
+    /* EN: The thumbnails show the result, not the original: each sheet takes the shape of the target paper and the page sits inside with its margins. */
+    previewNote: 'Las miniaturas muestran el resultado, no el original: cada hoja toma la forma del papel ' +
+                 'destino y la página queda dentro con sus márgenes.',
     /* EN: Inner (at the binding) */
     inner: 'Interior (al pliegue)',
     /* EN: Outer */
@@ -1218,14 +1278,25 @@ var T = {
     /* EN: What looks like a form may just be printed lines. In that case use Sign to place text on top of it. */
     noFieldsBody: 'Puede que lo que parece un formulario sean solo líneas dibujadas. ' +
                   'En ese caso usa Firmar para poner texto encima.',
-    /* EN: {0} fields found */
-    found: '{0} campos encontrados',
+    /* EN: {0} fields found. The preview shows each page with its own fields beside it, and refreshes as you type. */
+    found: '{0} campos encontrados. La vista muestra cada página con sus campos al lado, ' +
+           'y se refresca a medida que escribes.',
     /* EN: Yes */
     yes: 'Sí',
     /* EN: No */
     no: 'No',
     /* EN: (choose one) */
     chooseOne: '(elige una)',
+    /* EN: Page {0} of {1} */
+    page: 'Página {0} de {1}',
+    /* EN: Updating… */
+    updating: 'Actualizando…',
+    /* EN: The values are drawn over the page as an approximation: the typeface and its size may differ slightly from what a PDF reader will finally show. The position and the content are exact. */
+    fontNote: 'Los valores se dibujan sobre la página de forma aproximada: la tipografía y su tamaño ' +
+              'pueden diferir levemente de lo que muestre al final un lector de PDF. La posición y el ' +
+              'contenido sí son exactos.',
+    /* EN: The preview needs pdf.js, which is fetched from the internet. You can fill the form in anyway. */
+    noPreview: 'La vista previa necesita pdf.js, que se baja de internet. Puedes rellenar el formulario igual.',
     /* EN: Lock the fields so they can no longer be edited */
     flatten: 'Dejar los campos fijos, para que ya no se puedan editar',
     /* EN: Once locked there is no going back: keep the original if you might need to change it. */
@@ -1807,11 +1878,14 @@ function guardaZoom(){
   try { localStorage.setItem(ZOOM_CLAVE, String(nivelZoom)); } catch(e){}
 }
 
-function rejilla(host, u8, opt){
-  opt = opt || {};
-  var caja = el('div','light'), hojas = el('div','sheets');
-
-  /* selector de tamaño, dentro de la propia mesa */
+/* Selector de tamaño para colgar dentro de una mesa oscura. Vive aparte de
+   rejilla() porque las vistas previas de «Varias páginas por hoja» arman su
+   propia mesa —una tarjeta por hoja de salida, no por página de origen— y
+   deben ofrecer el mismo control con la misma preferencia compartida.
+   `alRedibujar` se llama después de aplicar el tamaño nuevo: hay que volver a
+   rasterizar, porque las miniaturas se dibujan al doble del ancho mostrado y
+   estirar el mismo dibujo se vería borroso. */
+function barraZoom(caja, alRedibujar){
   var barra = el('div','zoom');
   var rot = el('label'); rot.textContent = T.grid.zoom;
   var sel = el('select');
@@ -1820,21 +1894,22 @@ function rejilla(host, u8, opt){
     if(z === nivelZoom) o.selected = true;
     sel.appendChild(o);
   }
+  function aplica(){ caja.style.setProperty('--hoja', anchoZoom(nivelZoom) + 'px'); }
   sel.onchange = function(){
     nivelZoom = +sel.value;
-    guardaZoom();
-    aplicaZoom();
-    /* Repintar entero es lo correcto aunque parezca bruto: las miniaturas se
-       rasterizan al doble del ancho mostrado, así que al agrandar hay que
-       volver a dibujarlas o se verían borrosas. pinta() deja marcadores de
-       posición y el observador redibuja solo las que están a la vista. */
-    pinta();
+    guardaZoom(); aplica();
+    if(alRedibujar) alRedibujar();
   };
   barra.appendChild(rot); barra.appendChild(sel);
-  function aplicaZoom(){ caja.style.setProperty('--hoja', anchoZoom(nivelZoom) + 'px'); }
-  aplicaZoom();
+  aplica();
+  return barra;
+}
 
-  caja.appendChild(barra); caja.appendChild(hojas); host.appendChild(caja);
+function rejilla(host, u8, opt){
+  opt = opt || {};
+  var caja = el('div','light'), hojas = el('div','sheets');
+  caja.appendChild(barraZoom(caja, function(){ pinta(); }));
+  caja.appendChild(hojas); host.appendChild(caja);
 
   var api = { orden:[], giro:{}, fuera:{}, sel:{}, total:0, doc:null, elegida:0 };
   var obs = null, tarjetas = [];
@@ -2628,15 +2703,28 @@ HERR.organizar = {
   }
 };
 
-/* ── Imágenes → PDF ─────────────────────────────────────────────────────── */
-/* Todo ajuste se muestra además en su unidad real: los tamaños y márgenes en
+/* ── Imágenes → PDF ─────────────────────────────────────────────────────────
+   Convierte fotos o capturas en un PDF, una imagen por página.
+
+   Todo ajuste se muestra además en su unidad real: los tamaños y márgenes en
    milímetros, la calidad en porcentaje JPEG, y la resolución que le va a quedar
    a cada imagen sobre el papel.
 
    Esa última cifra se calcula sola y es la que de verdad decide si algo se va a
    ver bien impreso: si una foto de 1700 px de ancho se dibuja sobre 180 mm de
    papel, quedan 1700 / (180/25,4) ≈ 240 ppp. Antes no había forma de saberlo
-   sin exportar y mirar. */
+   sin exportar y mirar.
+
+   LA MINIATURA DE CADA FILA se genera durante la MISMA decodificación que sirve
+   para medir la imagen, y se guarda como data URL propia de 92 px. No se guarda
+   el objectURL del original a propósito: dejarlo vivo en un <img> mantiene
+   decodificada la imagen completa por cada fila, y con veinte fotos de doce
+   megapíxeles eso son cientos de megas de mapa de bits. Medido, cuatro fotos de
+   1700×2400 pasan de 1,3 MB de originales a 12 kB de miniaturas. De regalo, no
+   queda ningún URL que revocar al quitar una imagen de la lista.
+
+   Cada tanda que entra se ordena sola por nombre y se agrega AL FINAL; lo que ya
+   estaba no se toca, para respetar un orden puesto a mano.                    */
 HERR.imagenes = {
   nombre: T.imagesToPdf.name, desc: T.imagesToPdf.desc,
   build: function(c){
@@ -2721,7 +2809,7 @@ HERR.imagenes = {
       $('#oriF',pan).hidden     = t === 'auto' || t === 'libre';   /* sin hoja fija no hay orientación */
       $('#marLibre',pan).hidden = selMar.value !== 'libre';
       $('#vcal',pan).textContent = rCal.value + ' %';
-      pinta();
+      pintaLista();
     }
     selTam.onchange = selMar.onchange = refrescaPanel;
     rCal.oninput = refrescaPanel;
@@ -2729,7 +2817,7 @@ HERR.imagenes = {
     Array.prototype.forEach.call(pan.querySelectorAll('#oriF .chip'), function(ch){
       ch.onclick = function(){
         Array.prototype.forEach.call(pan.querySelectorAll('#oriF .chip'), function(o){ o.classList.remove('on'); });
-        ch.classList.add('on'); ori = ch.dataset.o; pinta();
+        ch.classList.add('on'); ori = ch.dataset.o; pintaLista();
       };
     });
 
@@ -2815,11 +2903,11 @@ HERR.imagenes = {
           return a.nombre.localeCompare(b.nombre, undefined, {numeric:true, sensitivity:'base'});
         });
         lista = lista.concat(tanda);
-        pinta();
+        pintaLista();
       });
     }
 
-    function pinta(){
+    function pintaLista(){
       caja.innerHTML = '';
       lista.forEach(function(it, i){
         var r = el('div','item',
@@ -2847,10 +2935,10 @@ HERR.imagenes = {
         r.appendChild(q);
 
         var quitar = el('button','ghost'); quitar.textContent = T.common.remove;
-        quitar.onclick = function(){ lista.splice(i,1); pinta(); };
+        quitar.onclick = function(){ lista.splice(i,1); pintaLista(); };
         r.appendChild(quitar);
 
-        filaArrastrable(r, i, lista, pinta);
+        filaArrastrable(r, i, lista, pintaLista);
         caja.appendChild(r);
       });
       if(lista.length){
@@ -2863,7 +2951,7 @@ HERR.imagenes = {
       }
       btn.disabled = !lista.length;
     }
-    vac.onclick = function(){ lista = []; res.innerHTML = ''; pinta(); };
+    vac.onclick = function(){ lista = []; res.innerHTML = ''; pintaLista(); };
 
     /* Pasa cualquier imagen por un canvas y la devuelve como JPEG. El relleno
        blanco previo es necesario porque el JPEG no tiene canal alfa: sin él, las
@@ -4414,7 +4502,28 @@ HERR.agua = {
   }
 };
 
-/* ── Varias páginas por hoja ────────────────────────────────────────────── */
+/* ── Varias páginas por hoja ──────────────────────────────────────────────
+   Compone varias páginas del original en una sola hoja de salida.
+
+   EL TAMAÑO DE LA HOJA. «El mismo del original» significa literalmente eso: la
+   hoja mide lo que medía UNA página del documento y las páginas se achican para
+   caber dentro. Antes componía una hoja del porte de las páginas juntas —dos al
+   lado de otra daban el doble de ancho— y con un documento apaisado, como una
+   presentación 16:9, salía una tira de proporción 3,5:1 que no corresponde a
+   ningún papel. La orientación se elige a mano; deducirla de la cuadrícula
+   producía otro absurdo: pedir papel Legal para un documento que ya era Legal
+   salía girado, con las páginas diminutas.
+
+   LA VISTA PREVIA no usa rejilla(), porque la unidad no es la página de origen
+   sino la HOJA DE SALIDA: una tarjeta por hoja, con sus celdas adentro. Comparte
+   eso sí la mesa oscura, el selector de tamaño —barraZoom()— y la idea de
+   dibujar solo lo que está por entrar en pantalla, que es lo que permite
+   mostrarlas TODAS sin que un documento largo congele la pestaña. Se muestran
+   todas a propósito: una previsualización parcial invitaría a creer que el
+   archivo final solo trae las hojas que se ven.
+
+   medidaHoja() la usan la vista previa y el guardado. Si divergieran, la
+   previsualización mentiría, que es peor que no tenerla.                     */
 HERR.agrupar = {
   nombre: T.nup.name, desc: T.nup.desc,
   build: function(c){
@@ -4433,6 +4542,9 @@ HERR.agrupar = {
             }).join('') + '</select></div>' +
           '<div class="field"><label class="lH"></label><select id="hoja">' +
             '<option value="auto" selected></option></select></div>' +
+          '<div class="field" id="oriF"><label class="lOri"></label><div class="opts">' +
+            '<button type="button" class="chip" data-o="v"></button>' +
+            '<button type="button" class="chip" data-o="h"></button></div></div>' +
           '<div class="field" style="flex:0 0 auto"><label class="lG"></label>' +
             '<input type="number" id="gap" min="0" max="40" step="1" value="4"></div>' +
           '<div class="field" style="flex:0 0 auto"><label class="lM"></label>' +
@@ -4444,9 +4556,18 @@ HERR.agrupar = {
       $('.lH',pan).textContent = T.nup.sheet;
       $('#hoja option[value=auto]',pan).textContent = T.nup.sameAsSource;
       ponOpcionesPapel($('#hoja',pan));
+      $('.lOri',pan).textContent = T.imagesToPdf.orientation;
+      $('[data-o=v]',pan).textContent = T.imagesToPdf.portrait;
+      $('[data-o=h]',pan).textContent = T.imagesToPdf.landscape;
       $('.lG',pan).textContent = T.nup.gap;
       $('.lM',pan).textContent = T.nup.outer;
       $('.sMarco',pan).textContent = T.nup.frame;
+
+      /* previsualización primero, controles después, botón al final */
+      var zonaPrevia = el('div');
+      host.appendChild(zonaPrevia);
+      var notaPrevia = el('p','note'); notaPrevia.textContent = T.nup.previewNote;
+      host.appendChild(notaPrevia);
       host.appendChild(pan);
 
       var acc = el('div','actions'), out = el('div','outs');
@@ -4454,11 +4575,164 @@ HERR.agrupar = {
       acc.className = 'actions primaria'; acc.appendChild(btn);
       host.appendChild(acc); host.appendChild(out);
 
+      /* ── Vista previa ────────────────────────────────────────────────────
+         No usa rejilla() porque la unidad no es la página de origen sino la
+         HOJA DE SALIDA: una tarjeta por hoja, con sus celdas adentro. Comparte
+         eso sí la mesa oscura, el selector de tamaño y la idea de dibujar solo
+         lo que está por entrar en pantalla, que es lo que permite mostrarlas
+         TODAS sin que un documento largo congele la pestaña.
+
+         Se muestran todas a propósito: una previsualización parcial invitaría a
+         creer que el archivo final solo trae las hojas que se ven. */
+      var pdoc = null, obs = null;
+
+      /* La orientación se elige a mano. Antes se deducía de la cuadrícula —más
+         columnas que filas, hoja apaisada— y eso producía un resultado absurdo
+         en un caso muy razonable: pedir papel Legal para un documento que YA es
+         Legal salía girado, con las páginas diminutas. Al abrir se preselecciona
+         la orientación que suele convenir, pero manda lo que diga el usuario. */
+      var orientacion = null;
+      /* Al abrir se propone lo que suele convenir: si el documento ya es
+         apaisado se respeta, y si es vertical se gira solo cuando la cuadrícula
+         pone más columnas que filas. Después manda el usuario. */
+      function orientacionSugerida(){
+        var sz = doc.getPage(0).getSize();
+        if(sz.width > sz.height) return 'h';
+        var rej = REJAS[+$('#n',pan).value];
+        return rej[0] > rej[1] ? 'h' : 'v';
+      }
+      function pintaOrientacion(){
+        if(orientacion === null) orientacion = orientacionSugerida();
+        Array.prototype.forEach.call(pan.querySelectorAll('[data-o]'), function(o){
+          o.classList.toggle('on', o.dataset.o === orientacion);
+        });
+        /* la orientación aplica también a «el mismo del original»: se conserva
+           el tamaño de la página, girado si hace falta */
+        $('#oriF',pan).hidden = false;
+      }
+      Array.prototype.forEach.call(pan.querySelectorAll('[data-o]'), function(ch){
+        ch.onclick = function(){ orientacion = ch.dataset.o; pintaOrientacion(); pintaPrevia(); };
+      });
+
+      function disposicion(){
+        var nn = +$('#n',pan).value, rej = REJAS[nn];
+        return {n:nn, cols:rej[0], filas:rej[1],
+                gap:(+$('#gap',pan).value || 0) * MM_PT,
+                mar:(+$('#mar',pan).value || 0) * MM_PT,
+                marco:$('#marco',pan).checked,
+                hoja:$('#hoja',pan).value,
+                ori: orientacion || orientacionSugerida()};
+      }
+
+      /* Mismo cálculo de la hoja que usa el guardado.
+
+         «El mismo del original» significa literalmente eso: la hoja de salida
+         mide lo que medía una página del documento, y las páginas agrupadas se
+         achican para caber dentro. Antes se componía una hoja del porte de las
+         páginas juntas —dos al lado de otra daban una hoja del doble de ancho—
+         y con un documento apaisado, como una presentación 16:9, salía una tira
+         larguísima que no corresponde a ningún papel. */
+      function medidaHoja(r, primera){
+        var W = primera.width, H = primera.height;
+        if(r.hoja !== 'auto') return papelPt(r.hoja, r.ori === 'h');
+        return r.ori === 'h' ? [Math.max(W,H), Math.min(W,H)]
+                             : [Math.min(W,H), Math.max(W,H)];
+      }
+
+      function pintaPrevia(){
+        zonaPrevia.innerHTML = '';
+        if(obs){ obs.disconnect(); obs = null; }
+        var r = disposicion(), hojas = Math.ceil(total / r.n);
+        var caja = el('div','light'), mesa = el('div','sheets');
+        caja.appendChild(barraZoom(caja, pintaPrevia));
+        caja.appendChild(mesa);
+        zonaPrevia.appendChild(caja);
+
+        var sz0 = doc.getPage(0).getSize();
+        var HWHH = medidaHoja(r, {width:sz0.width, height:sz0.height});
+        var HW = HWHH[0], HH = HWHH[1];
+        var cw = (HW - r.mar*2 - r.gap*(r.cols-1)) / r.cols;
+        var ch = (HH - r.mar*2 - r.gap*(r.filas-1)) / r.filas;
+
+        var tarjetas = [];
+        for(var h = 0; h < hojas; h++){
+          var f = el('figure','sheet');
+          var hoja = el('div','hoja');
+          hoja.style.aspectRatio = HW + ' / ' + HH;
+          for(var k = 0; k < r.n; k++){
+            var idx = h*r.n + k;
+            if(idx >= total) break;
+            var ci = k % r.cols, ri = Math.floor(k / r.cols);
+            var celda = el('div','celda' + (r.marco ? ' borde' : ''));
+            celda.style.left   = ((r.mar + ci*(cw + r.gap))/HW*100) + '%';
+            celda.style.top    = ((r.mar + ri*(ch + r.gap))/HH*100) + '%';
+            celda.style.width  = (cw/HW*100) + '%';
+            celda.style.height = (ch/HH*100) + '%';
+            celda.dataset.pag = idx;
+            celda.appendChild(el('div','hueco'));
+            hoja.appendChild(celda);
+          }
+          f.appendChild(hoja);
+          var cap = el('figcaption');
+          cap.textContent = fmt(T.nup.sheetOf, h+1, hojas);
+          f.appendChild(cap);
+          mesa.appendChild(f);
+          tarjetas.push(f);
+        }
+
+        /* se rasteriza una hoja completa cuando está por entrar en pantalla */
+        obs = new IntersectionObserver(function(ents){
+          ents.forEach(function(en){
+            if(!en.isIntersecting) return;
+            obs.unobserve(en.target);
+            dibujaHoja(en.target);
+          });
+        }, {root: mesa, rootMargin:'320px'});
+        tarjetas.forEach(function(t){ obs.observe(t); });
+      }
+
+      function dibujaHoja(tarj){
+        var celdas = Array.prototype.slice.call(tarj.querySelectorAll('.celda'));
+        pdfjs().then(function(lib){
+          if(pdoc) return pdoc;
+          return lib.getDocument({data: copiaBuffer(u8)}).promise.then(function(d){ pdoc = d; return d; });
+        }).then(function(d){
+          return celdas.reduce(function(p, celda){
+            return p.then(function(){
+              return d.getPage(+celda.dataset.pag + 1).then(function(pg){
+                var v0 = pg.getViewport({scale:1});
+                var anchoCelda = celda.clientWidth || 60, altoCelda = celda.clientHeight || 80;
+                /* MISMA regla que el guardado: la página se ajusta al hueco por
+                   el lado que sobre primero, sin deformarse. Antes se escalaba
+                   solo por el ancho, y una página vertical en una celda apaisada
+                   quedaba más alta que la celda; después el CSS la achataba. */
+                var e = Math.min(anchoCelda / v0.width, altoCelda / v0.height);
+                var vp = pg.getViewport({scale: e * 2});      /* al doble, por nitidez */
+                var cv = el('canvas');
+                cv.width  = Math.max(1, Math.round(vp.width));
+                cv.height = Math.max(1, Math.round(vp.height));
+                /* el mapa de bits va al doble; en pantalla se muestra al tamaño
+                   exacto que ocupará la página dentro de la celda */
+                cv.style.width  = Math.max(1, Math.round(v0.width  * e)) + 'px';
+                cv.style.height = Math.max(1, Math.round(v0.height * e)) + 'px';
+                return pg.render({canvasContext: cv.getContext('2d'), viewport: vp}).promise
+                  .then(function(){ celda.innerHTML = ''; celda.appendChild(cv); });
+              });
+            });
+          }, Promise.resolve());
+        })['catch'](function(){ /* sin pdf.js quedan los huecos: la disposición se ve igual */ });
+      }
+
       function resumen(){
         var n = +$('#n',pan).value;
         $('#res',pan).textContent = fmt(T.nup.summary, total, Math.ceil(total/n));
       }
-      $('#n',pan).onchange = resumen; resumen();
+      /* cualquier ajuste rehace la vista previa */
+      Array.prototype.forEach.call(pan.querySelectorAll('input,select'), function(e){
+        e.onchange = function(){ pintaOrientacion(); resumen(); pintaPrevia(); };
+        e.oninput  = function(){ resumen(); pintaPrevia(); };
+      });
+      pintaOrientacion(); resumen(); pintaPrevia();
 
       btn.onclick = function(){
         out.innerHTML = ''; btn.disabled = true;
@@ -4467,6 +4741,7 @@ HERR.agrupar = {
         var gap = (+$('#gap',pan).value || 0) * MM_PT;
         var mar = (+$('#mar',pan).value || 0) * MM_PT;
         var marco = $('#marco',pan).checked, hoja = $('#hoja',pan).value;
+        var ori = orientacion || orientacionSugerida();
 
         PL.PDFDocument.load(copiaBuffer(u8), ABRIR).then(function(src){
           return PL.PDFDocument.create(GUARDAR).then(function(dst){
@@ -4477,18 +4752,14 @@ HERR.agrupar = {
               var hojas = 0;
               for(var i = 0; i < paginas.length; i += n){
                 var tanda = paginas.slice(i, i + n);
-                var HW, HH;
+                /* misma regla que la vista previa: «el mismo del original»
+                   conserva el tamaño de la página, girado si se pide */
+                var p0 = tanda[0], HW, HH;
                 if(hoja === 'auto'){
-                  /* la hoja se arma con la primera página del grupo, girada para
-                     que quepan las columnas a lo ancho */
-                  var p0 = tanda[0];
-                  HW = p0.width * cols; HH = p0.height * filas;
-                  var k = Math.min(1, 1190/Math.max(HW, HH));   /* tope A3 aprox */
-                  HW *= k; HH *= k;
+                  HW = ori === 'h' ? Math.max(p0.width, p0.height) : Math.min(p0.width, p0.height);
+                  HH = ori === 'h' ? Math.min(p0.width, p0.height) : Math.max(p0.width, p0.height);
                 } else {
-                  /* si hay más columnas que filas la hoja va apaisada, que es
-                     como caben mejor dos o cuatro páginas verticales */
-                  var d = papelPt(hoja, cols >= filas);
+                  var d = papelPt(hoja, ori === 'h');
                   HW = d[0]; HH = d[1];
                 }
                 var h = dst.addPage([HW, HH]);
@@ -4518,10 +4789,21 @@ HERR.agrupar = {
   }
 };
 
-/* ── Cambiar tamaño y márgenes ──────────────────────────────────────────── */
-/* Se hace con embedPages y no tocando el MediaBox porque así el contenido se
+/* ── Cambiar tamaño y márgenes ──────────────────────────────────────────────
+   Pasa el documento a otro tamaño de papel y le agrega márgenes.
+
+   Se hace con embedPages y no tocando el MediaBox porque así el contenido se
    reescala de verdad y queda centrado; mover el MediaBox a secas recorta o deja
-   el dibujo pegado a un borde. */
+   el dibujo pegado a un borde.
+
+   LA VISTA PREVIA sí usa rejilla(), con la opción `capa`: la tarjeta adopta la
+   proporción de la hoja destino y la miniatura de la página original se coloca
+   dentro en porcentajes, con los márgenes aplicados. No se reconstruye ningún
+   PDF; es puro CSS sobre el dibujo que la rejilla ya hizo.
+
+   destinoDe() calcula la hoja y sus márgenes, y la usan LA VISTA PREVIA Y EL
+   GUARDADO. Está escrita una sola vez a propósito: si divergieran, la
+   previsualización mentiría.                                                 */
 HERR.reencuadernar = {
   nombre: T.rebind.name, desc: T.rebind.desc,
   build: function(c){
@@ -4587,50 +4869,97 @@ HERR.reencuadernar = {
       etiquetasMargen();
       var lm = el('label'); lm.textContent = T.rebind.extra;
       pan.insertBefore(lm, $('.mm',pan));
+
+      /* Medidas de la hoja destino y de sus márgenes, en puntos, para la página
+         número `i` de ancho×alto dados. La usan LA VISTA PREVIA Y EL GUARDADO,
+         y por eso está escrita una sola vez: si divergieran, la previsualización
+         mentiría, que es peor que no tenerla. */
+      function destinoDe(i, aw, ah){
+        var tam = $('#tam',pan).value, apaisada = aw > ah, HW, HH;
+        if(tam === 'keep'){ HW = aw; HH = ah; }
+        else if(tam === 'libre'){
+          /* lo tecleado se gira si hace falta, para que una página apaisada no
+             termine metida a la fuerza en una hoja vertical */
+          var a = Math.max(10, +$('#pw',pan).value || 210) * MM_PT;
+          var b = Math.max(10, +$('#ph',pan).value || 297) * MM_PT;
+          HW = apaisada ? Math.max(a,b) : Math.min(a,b);
+          HH = apaisada ? Math.min(a,b) : Math.max(a,b);
+        } else {
+          var d = papelPt(tam, apaisada); HW = d[0]; HH = d[1];
+        }
+        var m = {i:+$('#mI',pan).value||0, d:+$('#mD',pan).value||0,
+                 s:+$('#mS',pan).value||0, f:+$('#mF',pan).value||0};
+        /* en modo espejo el margen izquierdo y el derecho se intercambian en las
+           páginas pares, para que el ancho caiga siempre al pliegue */
+        var esp = $('#esp',pan).checked;
+        var izq = (esp && i % 2 === 1) ? m.d : m.i;
+        var der = (esp && i % 2 === 1) ? m.i : m.d;
+        return {HW:HW, HH:HH, ml:izq*MM_PT, mr:der*MM_PT, mt:m.s*MM_PT, mb:m.f*MM_PT};
+      }
+
+      /* Vista previa: la tarjeta adopta la proporción de la hoja destino y la
+         miniatura de la página original se posiciona dentro en porcentajes, con
+         los márgenes aplicados. No se reconstruye ningún PDF; es puro CSS sobre
+         el dibujo que la rejilla ya hizo.
+
+         Nota: se usa el tamaño del MediaBox y no el de la página como se ve,
+         porque es exactamente lo que hace embedPages() al guardar. En un
+         documento con páginas giradas la previsualización y el resultado
+         coinciden entre sí, aunque ninguno respete la rotación. */
+      function capaDestino(idx, marco){
+        if(!marco) return;
+        var sz = doc.getPage(idx).getSize();
+        var d = destinoDe(idx, sz.width, sz.height);
+        marco.classList.add('destino');
+        marco.style.aspectRatio = d.HW + ' / ' + d.HH;
+        var lienzo = $('canvas', marco) || $('.ph', marco);
+        if(!lienzo) return;
+        var dw = d.HW - d.ml - d.mr, dh = d.HH - d.mt - d.mb;
+        if(dw <= 0 || dh <= 0){ lienzo.style.display = 'none'; return; }
+        var e = Math.min(dw/sz.width, dh/sz.height);
+        var w = sz.width*e, h = sz.height*e;
+        lienzo.style.display = 'block';
+        lienzo.style.left   = ((d.ml + (dw-w)/2)/d.HW*100) + '%';
+        lienzo.style.top    = ((d.mt + (dh-h)/2)/d.HH*100) + '%';
+        lienzo.style.width  = (w/d.HW*100) + '%';
+        lienzo.style.height = (h/d.HH*100) + '%';
+      }
+
+      /* Las miniaturas van primero, justo bajo «Abrir otro PDF»: se ve el
+         resultado y después con qué ajustarlo. El panel se arma más arriba pero
+         se cuelga acá, ya que destinoDe() lo necesita declarado. */
+      var api = rejilla(host, u8, {capa: capaDestino});
+      var previa = el('p','note'); previa.textContent = T.rebind.previewNote;
+      host.appendChild(previa);
       host.appendChild(pan);
 
       var acc = el('div','actions'), out = el('div','outs');
       var btn = el('button','btn primary'); btn.textContent = T.rebind.action;
       acc.className = 'actions primaria'; acc.appendChild(btn);
       host.appendChild(acc); host.appendChild(out);
+      api.arranca(total);
+
+      /* cualquier ajuste redibuja las tarjetas */
+      Array.prototype.forEach.call(pan.querySelectorAll('input,select'), function(e){
+        var antes = e.onchange, antesIn = e.oninput;
+        e.onchange = function(ev){ if(antes) antes.call(this, ev); api.capas(); };
+        e.oninput  = function(ev){ if(antesIn) antesIn.call(this, ev); api.capas(); };
+      });
 
       btn.onclick = function(){
         out.innerHTML = ''; btn.disabled = true;
-        var destino = $('#tam',pan).value;
-        var m = {i:+$('#mI',pan).value||0, d:+$('#mD',pan).value||0,
-                 s:+$('#mS',pan).value||0, f:+$('#mF',pan).value||0};
-        var espejo2 = $('#esp',pan).checked;
-
         PL.PDFDocument.load(copiaBuffer(u8), ABRIR).then(function(src){
           return PL.PDFDocument.create(GUARDAR).then(function(dst){
             ponMetadatos(dst, leeMetadatos(src));
             return dst.embedPages(src.getPages()).then(function(paginas){
               paginas.forEach(function(p, i){
-                var HW, HH;
-                var apaisada = p.width > p.height;
-                if(destino === 'keep'){ HW = p.width; HH = p.height; }
-                else if(destino === 'libre'){
-                  /* lo tecleado se gira si hace falta, para que una página
-                     apaisada no termine metida a la fuerza en una hoja vertical */
-                  var a = Math.max(10, +$('#pw',pan).value || 210) * MM_PT;
-                  var b = Math.max(10, +$('#ph',pan).value || 297) * MM_PT;
-                  HW = apaisada ? Math.max(a,b) : Math.min(a,b);
-                  HH = apaisada ? Math.min(a,b) : Math.max(a,b);
-                } else {
-                  /* si la original era apaisada, la hoja destino también */
-                  var d = papelPt(destino, apaisada);
-                  HW = d[0]; HH = d[1];
-                }
-                /* en modo espejo el margen izquierdo y el derecho se intercambian
-                   en las páginas pares, para que el ancho caiga siempre al pliegue */
-                var izq = (espejo2 && i % 2 === 1) ? m.d : m.i;
-                var der = (espejo2 && i % 2 === 1) ? m.i : m.d;
-                var ml = izq*MM_PT, mr = der*MM_PT, mt = m.s*MM_PT, mb = m.f*MM_PT;
-                var dw = HW - ml - mr, dh = HH - mt - mb;
-                var pg = dst.addPage([HW, HH]);
+                var d = destinoDe(i, p.width, p.height);
+                var dw = d.HW - d.ml - d.mr, dh = d.HH - d.mt - d.mb;
+                var pg = dst.addPage([d.HW, d.HH]);
                 if(dw <= 0 || dh <= 0) return;                 /* márgenes imposibles: hoja en blanco */
                 var e = Math.min(dw/p.width, dh/p.height);
-                pg.drawPage(p, {x: ml + (dw - p.width*e)/2, y: mb + (dh - p.height*e)/2,
+                /* el margen inferior es `mb` en el papel, que crece hacia arriba */
+                pg.drawPage(p, {x: d.ml + (dw - p.width*e)/2, y: d.mb + (dh - p.height*e)/2,
                                 xScale:e, yScale:e});
               });
               return dst.save(GUARDAR);
@@ -4646,10 +4975,70 @@ HERR.reencuadernar = {
   }
 };
 
-/* ── Rellenar formulario ────────────────────────────────────────────────── */
-/* Los tipos de campo se distinguen con instanceof y no por el nombre de la
+/* ── Rellenar formulario ────────────────────────────────────────────────────
+   Los tipos de campo se distinguen con instanceof y no por el nombre de la
    clase: la pdf-lib incrustada viene minificada y sus constructores se llaman
-   `r`, `e` y cosas así. */
+   `r`, `e` y cosas así.
+
+   LA PANTALLA. Un bloque por cada página que tenga campos: a la izquierda los
+   controles de esa página, a la derecha la página misma. Antes era un solo
+   bloque con todos los campos y una página que iba saltando según dónde
+   estuviera el foco, y en un formulario de varias hojas eso obligaba a adivinar
+   qué campo correspondía a qué. Los bloques comparten el ancho: mover cualquier
+   divisor los mueve todos.
+
+   CÓMO SE DIBUJA, Y POR QUÉ NO DE LA FORMA OBVIA.
+   Lo natural sería rellenar el formulario con pdf-lib, guardar el PDF y
+   rasterizarlo con pdf.js en cada cambio. Se probó y NO FUNCIONA: pdf.js no
+   dibuja el contenido de los campos de un formulario en el lienzo. Se midió con
+   los cuatro modos de anotación, con la fuente incrustada explícitamente,
+   llamando a updateFieldAppearances() a mano y hasta aplanando el documento:
+   cero píxeles en todos los casos. El recuadro del campo sale idéntico esté
+   vacío o lleno.
+
+   Ojo con AnnotationMode.ENABLE_FORMS, que suena a lo que uno quiere y es lo
+   contrario: existe para cuando ADEMÁS se dibuja la capa HTML de anotaciones, y
+   por eso omite los campos del lienzo. Con ese modo la página sale en blanco.
+
+   Así que cada página se rasteriza con AnnotationMode.ENABLE —que sí dibuja el
+   formulario en blanco, con sus recuadros— y los valores se pintan encima como
+   texto HTML colocado con el rectángulo de cada campo. Escribir actualiza la
+   vista al instante, sin guardar ni recargar nada.
+
+   El precio es que la tipografía en pantalla es una aproximación de la que
+   usará el lector de PDF. Está avisado en la interfaz.
+
+   LIMITACIÓN CONOCIDA DEL ARCHIVO EXPORTADO — vale la pena leerla antes de
+   intentar arreglarla, porque ya se probaron varias vías que no funcionan.
+
+   Al guardar, pdf-lib regenera la apariencia de los campos rellenados, y esa
+   apariencia incluye un rectángulo del porte del campo. En un formulario con
+   diseño o imágenes de fondo, ese rectángulo las tapa. Son unos 337 píxeles por
+   campo rellenado, medido sobre un formulario real de 205 campos.
+
+   Lo que NO sirve, todo medido con dos motores independientes —pdf.js y
+   Ghostscript— para no fiarse de uno solo:
+
+     · Borrar /MK /BG del widget: EMPEORA. Cuando el campo no declara fondo,
+       pdf-lib pinta blanco por omisión. De 1.011 píxeles tapados se pasa a 5.431.
+     · Poner /MK /BG en un arreglo vacío, que en PDF significa transparente:
+       idéntico a borrarlo, 5.431.
+     · Borrar el /MK completo: peor todavía, 6.127.
+     · Escribir la apariencia a mano con updateAppearances(fuente, proveedor).
+       El flujo generado contiene SOLO el texto —se volcó y verificó: «q BT 0 0 0
+       rg /Helvetica 9 Tf 2 3.71 Td <…> Tj ET Q»— y declara bien la fuente en sus
+       recursos. Aun así el recuadro aparece, así que sale de alguna propiedad
+       del widget que no se logró aislar.
+     · Guardar con updateFieldAppearances:false: es lo ÚNICO que no tapa nada
+       —cero píxeles— pero deja el valor guardado en /V con la apariencia
+       original, o sea el campo se ve vacío en los lectores. Forzar
+       /NeedAppearances tampoco ayuda: quien regenera vuelve a pintar el blanco.
+
+   La salida limpia, si alguna vez se implementa, es estampar los valores como
+   contenido de la página con drawText —igual que hacen Numerar y Marca de agua,
+   con el mismo anclaje()— y eliminar los campos. Eso da texto visible en
+   cualquier lector y sin rectángulo, a cambio de que el resultado deje de ser
+   editable; encajaría como lo que hace la casilla «Dejar los campos fijos».   */
 HERR.formularios = {
   nombre: T.forms.name, desc: T.forms.desc,
   build: function(c){
@@ -4666,44 +5055,155 @@ HERR.formularios = {
         return;
       }
 
-      var info = el('p','note'); info.textContent = fmt(T.forms.found, campos.length);
-      host.appendChild(info);
+      /* ── dónde vive cada campo ────────────────────────────────────────────
+         Un campo puede tener varios widgets, y en un grupo de opción pueden
+         estar repartidos en páginas distintas. Cada widget declara su página en
+         /P, pero eso es opcional: si falta, hay que buscar su referencia en los
+         /Annots de cada página. */
+      var paginas = doc.getPages();
+      function paginaDelWidget(wd){
+        try {
+          var P_ = wd.dict.get(PL.PDFName.of('P'));
+          if(P_){
+            for(var i = 0; i < paginas.length; i++) if(paginas[i].ref === P_) return i;
+          }
+          var ref = wd.dict.context.getObjectRef(wd.dict);
+          for(var k = 0; k < paginas.length; k++){
+            var an = paginas[k].node.Annots();
+            if(!an) continue;
+            for(var j = 0; j < an.size(); j++) if(an.get(j) === ref) return k;
+          }
+        } catch(e){}
+        return -1;
+      }
 
-      var pan = el('div','panel');
-      host.appendChild(pan);
-      var lectores = [];      /* cada uno sabe volcar su valor al formulario */
-
+      /* Índice plano de lo que hay que dibujar encima de cada página.
+         `opcion` solo lo usan los grupos: dice a qué alternativa corresponde
+         ese recuadro concreto, porque cada una tiene el suyo. */
+      var marcas = [];
       campos.forEach(function(campo){
         var nom = campo.getName();
+        try {
+          campo.acroField.getWidgets().forEach(function(wd, k){
+            var pag = paginaDelWidget(wd);
+            if(pag < 0) return;
+            marcas.push({nombre:nom, pag:pag, rect:wd.getRectangle(), opcion:k, el:null});
+          });
+        } catch(e){}
+      });
+
+      /* las dos frases van juntas: ocupaban dos renglones para decir cosas que
+         se leen de corrido */
+      var info = el('p','note'); info.textContent = fmt(T.forms.found, campos.length);
+      host.appendChild(info);
+      var notaFuente = el('p','hint'); notaFuente.textContent = T.forms.fontNote;
+      host.appendChild(notaFuente);
+
+      var lectores = [];        /* cada uno vuelca su valor al formulario final */
+      var valores  = {};        /* lo que se muestra encima de la página        */
+      var controlDe = {};       /* nombre → el control de la izquierda          */
+      var activo = null;
+      var anchoIzq = 46;        /* reparto compartido por todos los bloques, en % */
+      var bloques = [];
+      var pdoc = null;
+
+      /* ── un bloque por página con campos ──────────────────────────────────
+         Las páginas sin ningún campo no se muestran: no hay nada que rellenar
+         en ellas y en un documento largo serían una pared de hojas vacías. */
+      var conCampos = [];
+      marcas.forEach(function(m){ if(conCampos.indexOf(m.pag) < 0) conCampos.push(m.pag); });
+      conCampos.sort(function(a,b){ return a-b; });
+
+      /* Un campo se controla desde el bloque de su PRIMER widget. Un grupo de
+         opción repartido en varias páginas se rellena desde una sola, aunque sus
+         marcas aparezcan en todas. */
+      function primeraPagina(nom){
+        var m = marcas.filter(function(x){ return x.nombre === nom; })[0];
+        return m ? m.pag : conCampos[0];
+      }
+
+      conCampos.forEach(function(pag){
+        var split = el('div','split');
+        var izq = el('div','lado campos'), divisor = el('div','divisor'), der = el('div','lado vista');
+        izq.style.flexBasis = anchoIzq + '%';
+        split.appendChild(izq); split.appendChild(divisor); split.appendChild(der);
+        host.appendChild(split);
+        var lienzo = el('div','vistaPag'), pie = el('div','pie');
+        der.appendChild(lienzo); der.appendChild(pie);
+        var b = {pag:pag, split:split, izq:izq, der:der, lienzo:lienzo, pie:pie, dibujada:false};
+        bloques.push(b);
+
+        /* El divisor reparte el ancho de TODOS los bloques a la vez, para que la
+           pantalla no quede escalonada. Al soltar hay que volver a rasterizar:
+           el lienzo se dibuja al ancho que tenía el panel, y estirarlo por CSS
+           lo dejaría borroso o, al revés, encogido para siempre. */
+        divisor.addEventListener('pointerdown', function(e){
+          divisor.setPointerCapture(e.pointerId);
+          var mover = function(ev){
+            var r = split.getBoundingClientRect();
+            anchoIzq = Math.max(20, Math.min(80, (ev.clientX - r.left) / r.width * 100));
+            bloques.forEach(function(x){ x.izq.style.flexBasis = anchoIzq + '%'; });
+          };
+          var soltar = function(){
+            divisor.removeEventListener('pointermove', mover);
+            divisor.removeEventListener('pointerup', soltar);
+            divisor.removeEventListener('pointercancel', soltar);
+          };
+          divisor.addEventListener('pointermove', mover);
+          divisor.addEventListener('pointerup', soltar);
+          divisor.addEventListener('pointercancel', soltar);
+          e.preventDefault();
+        });
+      });
+
+      function bloqueDe(pag){
+        return bloques.filter(function(b){ return b.pag === pag; })[0];
+      }
+
+      /* ── construir los campos, cada uno en el bloque de su página ── */
+      campos.forEach(function(campo){
+        var nom = campo.getName();
+        var b = bloqueDe(primeraPagina(nom));
+        if(!b) return;
         var f = el('div','field');
         var lab = el('label'); lab.textContent = nom; f.appendChild(lab);
+        function enfoca(){ activo = nom; pintaValores(); }
 
         if(campo instanceof PL.PDFTextField){
-          var inp = el('input'); inp.type = 'text';
+          var multi = false;
+          try { multi = campo.isMultiline && campo.isMultiline(); } catch(e){}
+          var inp = multi ? el('textarea') : el('input');
+          if(!multi) inp.type = 'text'; else inp.rows = 3;
           try { inp.value = campo.getText() || ''; } catch(e){}
-          if(campo.isMultiline && campo.isMultiline()){
-            inp = el('textarea'); inp.rows = 3;
-            try { inp.value = campo.getText() || ''; } catch(e){}
-          }
+          valores[nom] = {texto: inp.value};
           f.appendChild(inp);
+          controlDe[nom] = inp;
+          inp.onfocus = enfoca;
+          inp.onblur  = function(){ if(activo === nom){ activo = null; pintaValores(); } };
+          /* al instante: lo único que corre es reescribir un nodo de texto */
+          inp.oninput = function(){ valores[nom] = {texto: inp.value}; pintaValores(); };
           lectores.push(function(fm){ fm.getTextField(nom).setText(inp.value); });
 
         } else if(campo instanceof PL.PDFCheckBox){
           var chk = el('label','check','<input type="checkbox"><span></span>');
           $('span', chk).textContent = T.forms.yes;
           try { $('input', chk).checked = campo.isChecked(); } catch(e){}
+          valores[nom] = {marca: $('input', chk).checked};
           f.appendChild(chk);
+          controlDe[nom] = $('input', chk);
+          $('input', chk).onfocus = enfoca;
+          $('input', chk).onchange = function(){
+            valores[nom] = {marca: this.checked}; enfoca();
+          };
           lectores.push(function(fm){
             var cb = fm.getCheckBox(nom);
             if($('input', chk).checked) cb.check(); else cb.uncheck();
           });
 
         } else if(campo instanceof PL.PDFDropdown || campo instanceof PL.PDFOptionList){
-          var sel = el('select');
-          var ops = [];
+          var sel = el('select'), ops = [];
           try { ops = campo.getOptions() || []; } catch(e){}
-          sel.innerHTML = '<option value=""></option>' +
-            ops.map(function(o){ return '<option></option>'; }).join('');
+          sel.innerHTML = '<option value=""></option>' + ops.map(function(){ return '<option></option>'; }).join('');
           $('option[value=""]', sel).textContent = T.forms.chooseOne;
           Array.prototype.forEach.call(sel.querySelectorAll('option'), function(o, k){
             if(k) o.textContent = o.value = ops[k-1];
@@ -4712,35 +5212,41 @@ HERR.formularios = {
             var actual = campo.getSelected && campo.getSelected();
             if(actual && actual.length) sel.value = actual[0];
           } catch(e){}
+          valores[nom] = {texto: sel.value};
           f.appendChild(sel);
+          controlDe[nom] = sel;
+          sel.onfocus = enfoca;
+          sel.onchange = function(){ valores[nom] = {texto: sel.value}; enfoca(); };
           lectores.push(function(fm){
             if(!sel.value) return;
-            var d2 = campo instanceof PL.PDFDropdown ? fm.getDropdown(nom) : fm.getOptionList(nom);
-            d2.select(sel.value);
+            (campo instanceof PL.PDFDropdown ? fm.getDropdown(nom) : fm.getOptionList(nom)).select(sel.value);
           });
 
         } else if(campo instanceof PL.PDFRadioGroup){
-          var cont = el('div','opts'), ops2 = [];
+          var cont = el('div','opts'), ops2 = [], elegido = null;
           try { ops2 = campo.getOptions() || []; } catch(e){}
-          var elegido = null;
           try { elegido = campo.getSelected(); } catch(e){}
-          ops2.forEach(function(o){
-            var b = el('button','chip' + (o === elegido ? ' on' : ''));
-            b.type = 'button'; b.textContent = o;
-            b.onclick = function(){
+          valores[nom] = {opcion: ops2.indexOf(elegido)};
+          ops2.forEach(function(o, k){
+            var bt = el('button','chip' + (o === elegido ? ' on' : ''));
+            bt.type = 'button'; bt.textContent = o;
+            bt.onclick = function(){
               Array.prototype.forEach.call(cont.children, function(x){ x.classList.remove('on'); });
-              b.classList.add('on'); elegido = o;
+              bt.classList.add('on'); elegido = o;
+              valores[nom] = {opcion: k};
+              enfoca();
             };
-            cont.appendChild(b);
+            cont.appendChild(bt);
           });
           f.appendChild(cont);
+          controlDe[nom] = cont.firstChild;
           lectores.push(function(fm){ if(elegido) fm.getRadioGroup(nom).select(elegido); });
 
         } else {
           var h = el('span','hint'); h.textContent = T.forms.unsupported;
           f.appendChild(h);
         }
-        pan.appendChild(f);
+        b.izq.appendChild(f);
       });
 
       var chkPlano = el('label','check','<input type="checkbox"><span></span>');
@@ -4749,10 +5255,140 @@ HERR.formularios = {
       var hp = el('p','hint'); hp.textContent = T.forms.flattenHint;
       host.appendChild(hp);
 
-      var acc = el('div','actions'), out = el('div','outs');
+      var acc = el('div','actions primaria'), out = el('div','outs');
       var btn = el('button','btn primary'); btn.textContent = T.forms.action;
-      acc.className = 'actions primaria'; acc.appendChild(btn);
+      acc.appendChild(btn);
       host.appendChild(acc); host.appendChild(out);
+
+      /* ── dibujar una página ───────────────────────────────────────────────
+         Se rasteriza al ancho que tenga su panel en ese momento. `forzar` la
+         redibuja aunque ya estuviera lista, que es lo que hace falta al mover
+         el divisor. */
+      function dibujaPagina(b, forzar){
+        if(b.dibujada && !forzar) return;
+        b.dibujada = true;
+        b.pie.classList.add('cargando');
+        b.pie.textContent = T.forms.updating;
+        pdfjs().then(function(lib){
+          if(pdoc) return pdoc;
+          return lib.getDocument({data: copiaBuffer(u8)}).promise.then(function(d){ pdoc = d; return d; });
+        }).then(function(d){
+          return d.getPage(b.pag + 1).then(function(pg){
+            var v0 = pg.getViewport({scale:1});
+            var ancho = Math.max(160, (b.der.clientWidth || 420) - 28);
+            var vp = pg.getViewport({scale: ancho / v0.width});
+            var cv = el('canvas');
+            cv.width  = Math.max(1, Math.round(vp.width));
+            cv.height = Math.max(1, Math.round(vp.height));
+            var cx = cv.getContext('2d');
+            cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height);
+            /* ENABLE, no ENABLE_FORMS: ese último deja los campos FUERA del
+               lienzo y la página saldría en blanco. */
+            return pg.render({canvasContext:cx, viewport:vp,
+                              annotationMode: window.pdfjsLib.AnnotationMode.ENABLE}).promise
+              .then(function(){
+                b.lienzo.innerHTML = '';
+                b.lienzo.appendChild(cv);
+                b.vp = vp;
+                b.pie.classList.remove('cargando');
+                b.pie.textContent = fmt(T.forms.page, b.pag + 1, pdoc.numPages);
+                colocaMarcas(b);
+              });
+          });
+        })['catch'](function(){
+          b.dibujada = false;
+          b.pie.classList.remove('cargando');
+          b.pie.textContent = T.forms.noPreview;
+        });
+      }
+      /* Quién manda el redibujado: el ANCHO REAL del panel, no el evento que lo
+         cambió. Antes se redibujaba al soltar el divisor, y eso fallaba en los
+         casos de siempre —soltar fuera de la ventana, un arrastre cancelado,
+         cambiar el tamaño de la ventana— dejando el lienzo a una escala que ya
+         no correspondía: los rótulos descuadrados hasta tocar un campo, y la
+         vista pegada en un ancho máximo menor del que alguna vez tuvo, porque
+         un lienzo con max-width:100% nunca crece más allá de su tamaño real.
+
+         Con ResizeObserver da lo mismo qué provocó el cambio. El margen de 4 px
+         evita rasterizar de nuevo por diferencias de redondeo. */
+      var esperaTam;
+      var observaTam = window.ResizeObserver ? new ResizeObserver(function(){
+        clearTimeout(esperaTam);
+        esperaTam = setTimeout(function(){
+          bloques.forEach(function(b){
+            if(!b.dibujada) return;
+            var cv = $('canvas', b.lienzo);
+            var quiero = Math.max(160, (b.der.clientWidth || 420) - 28);
+            if(!cv || Math.abs(cv.width - quiero) > 4) dibujaPagina(b, true);
+          });
+        }, 180);
+      }) : null;
+
+      /* Crea un rótulo por cada campo de esa página y lo posiciona sobre su
+         recuadro. convertToViewportRectangle traduce del sistema del papel al de
+         pantalla, incluida la inversión del eje vertical; devuelve las esquinas
+         en cualquier orden, de ahí los min/max. */
+      function colocaMarcas(b){
+        Array.prototype.forEach.call(b.lienzo.querySelectorAll('.val'), function(x){ x.remove(); });
+        if(!b.vp) return;
+        var cv = $('canvas', b.lienzo);
+        var k = cv ? (cv.clientWidth / cv.width) : 1;   /* el lienzo puede ir escalado por CSS */
+        marcas.filter(function(m){ return m.pag === b.pag; }).forEach(function(m){
+          var r = m.rect;
+          var q = b.vp.convertToViewportRectangle([r.x, r.y, r.x + r.width, r.y + r.height]);
+          var caja = el('div','val');
+          var alto = Math.abs(q[3] - q[1]) * k;
+          caja.style.left   = (Math.min(q[0], q[2]) * k) + 'px';
+          caja.style.top    = (Math.min(q[1], q[3]) * k) + 'px';
+          caja.style.width  = (Math.abs(q[2] - q[0]) * k) + 'px';
+          caja.style.height = alto + 'px';
+          /* el cuerpo se deduce del alto del recuadro, que es como se comportan
+             los campos de tamaño automático, que son la mayoría */
+          caja.style.fontSize = Math.max(6, alto * 0.6) + 'px';
+          /* hacer clic sobre la página lleva al control correspondiente */
+          caja.onclick = function(){
+            var ctrl = controlDe[m.nombre];
+            if(!ctrl) return;
+            activo = m.nombre;
+            try { ctrl.focus(); } catch(e){}
+            if(ctrl.scrollIntoView) ctrl.scrollIntoView({block:'nearest'});
+            pintaValores();
+          };
+          m.el = caja;
+          b.lienzo.appendChild(caja);
+        });
+        pintaValores();
+      }
+
+      /* Escribe el valor de cada campo en su rótulo. Es lo único que corre al
+         teclear, y por eso puede ir en `input` sin amortiguar nada. */
+      function pintaValores(){
+        marcas.forEach(function(m){
+          if(!m.el || !m.el.parentNode) return;
+          var v = valores[m.nombre] || {};
+          var txt = '';
+          if(v.texto != null) txt = v.texto;
+          else if(v.marca) txt = '✓';
+          else if(v.opcion != null && v.opcion === m.opcion) txt = '●';
+          m.el.textContent = txt;
+          m.el.classList.toggle('centro', v.texto == null);
+          m.el.classList.toggle('foco', m.nombre === activo);
+        });
+      }
+
+      /* Cada bloque se rasteriza cuando está por entrar en pantalla. En un
+         formulario de treinta páginas eso evita dibujarlas todas de una. */
+      var obs = new IntersectionObserver(function(ents){
+        ents.forEach(function(en){
+          if(!en.isIntersecting) return;
+          obs.unobserve(en.target);
+          dibujaPagina(bloques.filter(function(b){ return b.split === en.target; })[0]);
+        });
+      }, {rootMargin:'400px'});
+      bloques.forEach(function(b){
+        obs.observe(b.split);
+        if(observaTam) observaTam.observe(b.der);
+      });
 
       btn.onclick = function(){
         out.innerHTML = ''; btn.disabled = true;
