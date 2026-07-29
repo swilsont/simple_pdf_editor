@@ -1529,6 +1529,29 @@ function descargaConProgreso(url, onProg){
    el siguiente intento vuelva a probar. */
 var motores = { pdfjs:null, qpdf:null, gs:null };
 
+/* Abre un documento con pdf.js. Existe para que la opción `verbosity` no se
+   olvide en ninguna de las cinco aperturas del archivo.
+
+   Por omisión pdf.js escribe en la consola una advertencia por cada rareza que
+   encuentra en el PDF, y las repite en CADA rasterizado. Con un documento que
+   trae, por ejemplo, tipografías con instrucciones de ajuste que pdf.js no
+   implementa —«TT: undefined function»— o referencias a capas de contenido
+   opcional que el archivo no define —«Optional content group not found»—, la
+   consola queda inservible después de dibujar unas pocas miniaturas.
+
+   Ninguna de esas advertencias implica que algo salga mal: son observaciones
+   sobre el PDF de entrada, y la página se dibuja igual. Bajando el nivel a
+   ERRORS se silencian, pero los errores de verdad siguen apareciendo.
+
+   La opción viaja también al worker: pdf.js se la reenvía en su mensaje
+   `configure`, que es donde se dibuja de verdad. */
+function abreConPdfjs(lib, u8){
+  return lib.getDocument({
+    data: copiaBuffer(u8),
+    verbosity: lib.VerbosityLevel ? lib.VerbosityLevel.ERRORS : 0
+  }).promise;
+}
+
 /* Carga pdf.js y le deja su worker listo. Es OPCIONAL en casi todo el archivo:
    si falla, la rejilla cae a tarjetas numeradas y las herramientas siguen
    funcionando. La única que no puede vivir sin él es PDF → imágenes. */
@@ -2068,7 +2091,7 @@ function rejilla(host, u8, opt){
     /* pdf.js es OPCIONAL: sin él la rejilla funciona igual, con tarjetas
        numeradas en vez de miniaturas. Por eso el fallo solo deja un aviso. */
     pdfjs().then(function(lib){
-      return lib.getDocument({data: copiaBuffer(u8)}).promise;
+      return abreConPdfjs(lib, u8);
     }).then(function(doc){ api.doc = doc; observa(); })
     ['catch'](function(){ caja.appendChild(el('p','note', '')); $('p.note', caja).textContent = T.grid.noThumbs; });
   };
@@ -3092,7 +3115,7 @@ HERR.aimagenes = {
         var barra = $('i', pb);
 
         pdfjs().then(function(lib){
-          return lib.getDocument({data: copiaBuffer(u8)}).promise;
+          return abreConPdfjs(lib, u8);
         }).then(function(pdoc){
           /* De a una página: renderizar todas en paralelo agotaría la memoria en
              documentos largos, sobre todo a 600 ppp. */
@@ -3427,7 +3450,7 @@ HERR.firmar = {
 
           /* la vista previa es un lujo: si pdf.js no está, queda el rectángulo
              en blanco y la firma se coloca igual */
-          pdfjs().then(function(lib){ return lib.getDocument({data: copiaBuffer(u8)}).promise; })
+          pdfjs().then(function(lib){ return abreConPdfjs(lib, u8); })
             .then(function(pdoc){ return pdoc.getPage(elegida+1); })
             .then(function(p){
               var vp = p.getViewport({scale: (VW*f)/p.getViewport({scale:1}).width});
@@ -4695,7 +4718,7 @@ HERR.agrupar = {
         var celdas = Array.prototype.slice.call(tarj.querySelectorAll('.celda'));
         pdfjs().then(function(lib){
           if(pdoc) return pdoc;
-          return lib.getDocument({data: copiaBuffer(u8)}).promise.then(function(d){ pdoc = d; return d; });
+          return abreConPdfjs(lib, u8).then(function(d){ pdoc = d; return d; });
         }).then(function(d){
           return celdas.reduce(function(p, celda){
             return p.then(function(){
@@ -5271,7 +5294,7 @@ HERR.formularios = {
         b.pie.textContent = T.forms.updating;
         pdfjs().then(function(lib){
           if(pdoc) return pdoc;
-          return lib.getDocument({data: copiaBuffer(u8)}).promise.then(function(d){ pdoc = d; return d; });
+          return abreConPdfjs(lib, u8).then(function(d){ pdoc = d; return d; });
         }).then(function(d){
           return d.getPage(b.pag + 1).then(function(pg){
             var v0 = pg.getViewport({scale:1});
