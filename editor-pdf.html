@@ -182,13 +182,23 @@ input[type=range]{width:100%;accent-color:var(--cut)}
    previa: sin él, un absolute encima de la miniatura se anclaría a la hoja
    entera y se saldría sobre el pie y el número de página. */
 .sheet .thumb{position:relative;display:block;overflow:hidden}
-/* Una miniatura girada un cuarto de vuelta ocupa el espacio al revés: lo que
-   era alto pasa a ser ancho. Como `transform` no altera el reparto del espacio
-   —el navegador sigue reservando la caja sin girar—, el dibujo se sale del
-   marco y `overflow:hidden` lo recorta. Se resuelve en dos partes: la tarjeta
-   adopta la proporción invertida vía `aspect-ratio`, y el dibujo pasa a
-   posición absoluta para dejar de mandar sobre el alto. */
-.sheet .thumb.girada canvas{position:absolute;left:50%;top:50%}
+/* Una hoja girada un cuarto de vuelta ES LA MISMA HOJA, así que debe ocupar la
+   misma superficie: si sin girar mide A × A·r, girada mide A·r × A. Encogerla
+   para que cupiera en el ancho de siempre la dejaba en apenas un 59% del área,
+   y eso hace temer que vaya a salir una página más chica que el resto.
+
+   Por eso se ensancha la TARJETA por el factor r —la proporción del dibujo, que
+   el JS deja en la variable --r— en vez de encoger el dibujo. Así el dibujo se
+   deja a su ancho de siempre y, al girarlo, su huella coincide exactamente con
+   la tarjeta: no hace falta ninguna escala.
+
+   El dibujo va en posición absoluta porque `transform` no altera el reparto del
+   espacio —el navegador sigue reservando la caja sin girar— y si no, mandaría
+   sobre el alto con las medidas equivocadas. */
+.sheet.girada{width:min(calc(var(--hoja,195px) * var(--r,1)),100%)}
+.sheet.girada .thumb{aspect-ratio:var(--r,1)}
+.sheet.girada .thumb canvas{position:absolute;left:50%;top:50%;
+  width:calc(100% / var(--r,1));height:auto}
 /* Vista previa del resultado: la hoja toma la proporción del papel destino y
    la página original se coloca dentro, a escala y con sus márgenes. */
 .sheet .thumb.destino{background:var(--sheet)}
@@ -2035,20 +2045,20 @@ function rejilla(host, u8, opt){
      necesita el marco pasa a ser A·w/h — de ahí la proporción invertida. */
   function pintaGiro(marco, g){
     if(!marco) return;
-    var c = $('canvas', marco);
+    var hoja = marco.parentNode, c = $('canvas', marco);
     /* Mientras no haya dibujo solo está el marcador de posición, un recuadro
        gris: girarlo no comunica nada y no se conocen sus proporciones. Se deja
        para cuando llegue la miniatura, que vuelve a llamar acá. */
-    if(!c){ marco.classList.remove('girada'); marco.style.aspectRatio = ''; return; }
+    if(!c){ hoja.classList.remove('girada'); hoja.style.removeProperty('--r'); return; }
     var cuarto = g % 180 !== 0;
-    marco.classList.toggle('girada', cuarto);
+    hoja.classList.toggle('girada', cuarto);
     c.style.transformOrigin = 'center';
     if(cuarto){
-      var w = c.width || 1, h = c.height || 1;
-      marco.style.aspectRatio = h + ' / ' + w;
-      c.style.transform = 'translate(-50%,-50%) rotate(' + g + 'deg) scale(' + (w/h) + ')';
+      /* --r es la proporción del dibujo; el CSS ensancha la tarjeta con ella */
+      hoja.style.setProperty('--r', ((c.height || 1) / (c.width || 1)).toFixed(4));
+      c.style.transform = 'translate(-50%,-50%) rotate(' + g + 'deg)';
     } else {
-      marco.style.aspectRatio = '';
+      hoja.style.removeProperty('--r');
       c.style.transform = g ? 'rotate(' + g + 'deg)' : '';
     }
   }
