@@ -1452,12 +1452,28 @@ function toast(m, ms){
   toastT = setTimeout(function(){ tst.classList.remove('on'); }, ms || 2600);
 }
 
+/* Tipo MIME deducido de la extensión del nombre de salida.
+
+   Se deduce acá y no se pasa como argumento porque así no puede quedar mal en
+   ninguna de las dieciséis llamadas a bajar(). El tipo IMPORTA aunque el nombre
+   ya traiga extensión: el escritorio respeta el atributo `download` tal cual,
+   pero Android Chrome le agrega la extensión que corresponde al tipo declarado
+   en el Blob. Un PNG empaquetado como PDF se descarga «pagina.png.pdf». */
+var TIPOS = {
+  pdf:'application/pdf', zip:'application/zip',
+  png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', webp:'image/webp'
+};
+function tipoDe(nombre){
+  var m = /\.([a-z0-9]+)$/i.exec(nombre || '');
+  return (m && TIPOS[m[1].toLowerCase()]) || 'application/octet-stream';
+}
+
 /* Descarga sin servidor: se arma un Blob, se le fabrica una URL temporal y se
    pincha un <a download> invisible. El revoke va a los 30 s y no inmediatamente
    porque algunos navegadores todavía están leyendo el blob cuando el click
    retorna, y revocar antes de tiempo deja el archivo en cero. */
-function bajar(data, nombre, mime){
-  var b = data instanceof Blob ? data : new Blob([data], {type: mime || 'application/pdf'});
+function bajar(data, nombre){
+  var b = data instanceof Blob ? data : new Blob([data], {type: tipoDe(nombre)});
   var u = URL.createObjectURL(b), a = document.createElement('a');
   a.href = u; a.download = nombre;
   document.body.appendChild(a); a.click(); a.remove();
@@ -2038,11 +2054,13 @@ function rejilla(host, u8, opt){
     observa();
   }
 
-  /* Muestra una miniatura girada, encogiéndola lo justo para que quepa.
+  /* Muestra una miniatura girada. El trabajo lo hace el CSS —ver la regla
+     `.sheet.girada`, donde está explicado el porqué—; acá solo se le entrega
+     la proporción del dibujo en la variable --r y se aplica el giro.
 
-     Con un cuarto de vuelta, un dibujo de w × h ocupa h × w. Para que entre en
-     un marco de ancho A hay que encogerlo por w/h, y entonces el alto que
-     necesita el marco pasa a ser A·w/h — de ahí la proporción invertida. */
+     Con un cuarto de vuelta la tarjeta se ENSANCHA por r en vez de encogerse el
+     dibujo, para que la hoja girada ocupe la misma superficie que sin girar. Por
+     eso no hay ninguna escala en el transform. */
   function pintaGiro(marco, g){
     if(!marco) return;
     var hoja = marco.parentNode, c = $('canvas', marco);
@@ -5629,7 +5647,7 @@ function cajaDescargas(host, arch, nombreZip){
     $('.nm', r).textContent = a.name;
     $('.sz', r).textContent = pesoLegible(a.data.length);
     var b = el('button','btn primary'); b.textContent = T.common.download;
-    b.onclick = function(){ bajar(a.data, a.name, /\.pdf$/i.test(a.name) ? 'application/pdf' : ''); };
+    b.onclick = function(){ bajar(a.data, a.name); };
     r.appendChild(b); caja.appendChild(r);
   });
   if(arch.length > 1){
