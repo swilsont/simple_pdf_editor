@@ -154,6 +154,13 @@ input[type=range]{width:100%;accent-color:var(--cut)}
 /* El selector de tamaño vive DENTRO de la mesa oscura, no encima: pertenece a
    las miniaturas y no a la herramienta, y allá arriba no hacía más que sumarse
    a la fila de botones que ya compiten por la atención. */
+/* Aviso pegado a su campo: más apretado que un .warn suelto, para que no
+   empuje el resto del panel cada vez que aparece o desaparece. */
+/* El campo de la firma escrita se muestra con la tipografía elegida, así que
+   necesita más alto que un campo corriente para que el trazo se aprecie. */
+input.firmaViva{height:auto;padding:10px 12px;line-height:1.35}
+.field .warn.poda{margin-top:7px;padding:8px 10px;font-size:12.5px}
+.field .warn.poda strong{font-size:13px}
 .zoom{display:flex;align-items:center;gap:9px;padding:10px 14px 0}
 /* Sobre la mesa oscura hace falta blanco casi puro: el gris apagado que usa el
    resto de los rótulos se confundía con el fondo. */
@@ -307,7 +314,17 @@ input[type=range]{width:100%;accent-color:var(--cut)}
 .colorNat::-webkit-color-swatch-wrapper{padding:0}
 .colorNat::-webkit-color-swatch{border:none;border-radius:1px}
 .colorNat::-moz-color-swatch{border:none;border-radius:1px}
-.colorHex{width:96px;font-family:var(--mono);font-size:12.5px;text-transform:lowercase}
+/* Angosto a propósito: un código hexadecimal son siete caracteres y no hay
+   razón para que se lleve el ancho de un campo entero.
+
+   El selector va con `input.colorHex` y no con `.colorHex` a secas porque la
+   regla general de más arriba —`input[type=text]{width:100%}`— tiene mayor
+   especificidad que una clase suelta: elemento más atributo le gana a una
+   clase. Con el ancho al 100% el campo no cabía junto a las pastillas y
+   flex-wrap lo bajaba a una línea propia, que es justo lo que se quería
+   evitar. `flex:0 0 auto` remata: sin eso, flexbox lo estira igual. */
+input.colorHex{flex:0 0 auto;width:96px;font-family:var(--mono);
+  font-size:12.5px;text-transform:lowercase}
 .colorHex.mal{border-color:var(--cut);background:#FBEDE9}
 .colorMsg.mal{color:var(--cut)}
 .slide input[type=range]{flex:1}
@@ -567,6 +584,13 @@ var T = {
     file: ['archivo', 'archivos'],
     /* EN: external engine — badge on the cards that need a wasm download */
     engineBadge: 'motor externo',
+    /* EN: {0} of {1} — appended after a character that cannot be drawn */
+    dropped: ['{0} carácter que no se puede dibujar: {1}',
+              '{0} caracteres que no se pueden dibujar: {1}'],
+    /* EN: The standard PDF typefaces only cover the Latin alphabet, so emoji, Chinese, Arabic or Cyrillic cannot be written onto the page. Those characters are left out; the rest goes in fine. */
+    droppedHint: 'Las tipografías estándar del PDF solo cubren el alfabeto latino, así que ni los ' +
+                 'emojis ni el chino, el árabe o el cirílico se pueden escribir sobre la página. ' +
+                 'Esos caracteres quedan fuera; el resto entra sin problema.',
     /* EN: Custom… — opens a pair of millimetre fields */
     custom: 'Personalizado…',
     /* EN: Width (mm) */
@@ -848,12 +872,9 @@ var T = {
     yourName: 'Tu nombre',
     /* EN: Type here */
     namePlaceholder: 'Escribe aquí',
-    /* EN: Stroke */
-    stroke: 'Trazo',
-    /* EN: Cursive */
-    cursive: 'Cursiva',
-    /* EN: Regular */
-    regular: 'Regular',
+    /* EN: The signature is drawn as an image, so it can use any typeface your system has — and, unlike the rest of the editor, it accepts emoji and any alphabet. */
+    faceHint: 'La firma se dibuja como imagen, así que puede usar cualquier tipografía que tenga tu ' +
+              'sistema — y, a diferencia del resto del editor, acepta emojis y cualquier alfabeto.',
     /* EN: Type your name */
     typeYourName: 'Escribe tu nombre',
     /* EN: Pick the page above and drag the signature into place. The yellow corner resizes it, the blue circle turns it (hold Shift for 15° steps) and a double click straightens it. */
@@ -1109,7 +1130,16 @@ var T = {
     /* EN: Bold */
     bold: 'Negrita',
     /* EN: Italic */
-    italic: 'Cursiva'
+    italic: 'Cursiva',
+    /* ── nombres de las familias del sistema, solo para la firma ── */
+    /* EN: Handwritten */
+    manuscrita: 'Manuscrita',
+    /* EN: Serif */
+    serifa: 'Con serifa',
+    /* EN: Sans-serif */
+    palo: 'Sin serifa',
+    /* EN: Monospace */
+    mono: 'Monoespaciada'
   },
 
   /* ── Texto en las páginas ─────────────────────────────────────────────── */
@@ -1463,6 +1493,8 @@ var TIPOS = {
   pdf:'application/pdf', zip:'application/zip',
   png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', webp:'image/webp'
 };
+/* '.png' → 'image/png'. Lo desconocido cae a octet-stream, que hace que el
+   navegador respete el nombre tal cual en vez de inventarle una extensión. */
 function tipoDe(nombre){
   var m = /\.([a-z0-9]+)$/i.exec(nombre || '');
   return (m && TIPOS[m[1].toLowerCase()]) || 'application/octet-stream';
@@ -1684,6 +1716,9 @@ var tablaCRC = (function(){
   }
   return t;
 })();
+/* Suma de verificación que exige el formato ZIP para cada archivo. Se calcula
+   con la tabla de arriba en vez de bit a bit porque un ZIP de doscientas
+   imágenes hace esto doscientas veces sobre megas de datos. */
 function crc32(u8){
   var c = 0xFFFFFFFF;
   for(var i = 0; i < u8.length; i++) c = tablaCRC[(c ^ u8[i]) & 0xFF] ^ (c >>> 8);
@@ -1834,6 +1869,7 @@ function leeMetadatos(doc){
   try { var d = doc.getModificationDate(); if(d) m.Modificacion = d; } catch(e){}
   return m;
 }
+/* Vuelca al documento nuevo lo que leeMetadatos() sacó del original. */
 function ponMetadatos(doc, m){
   if(!m) return;
   ['Title','Author','Subject','Creator','Producer'].forEach(function(k){
@@ -1879,25 +1915,6 @@ function explicaError(e, host){
 }
 
 /* ── 4.6 Rejilla de páginas ─────────────────────────────────────────────── */
-/* Superficie compartida por dividir, ordenar, firmar, exportar y comprimir.
-
-   opt = {
-     seleccion : clic para marcar/desmarcar varias
-     unica     : clic para elegir UNA (excluyente con seleccion)
-     rotar     : botones ↺ ↻ en cada hoja
-     borrar    : botón ✕ en cada hoja
-     mover     : arrastrar para reordenar
-     pie       : función(idx) que devuelve un elemento colgado bajo la miniatura
-     capa      : función(idx, marco) que puede colgar una capa ENCIMA de la
-                 miniatura. Se llama al pintar y cada vez que llega el dibujo
-                 de verdad, para que la capa se ajuste al tamaño definitivo
-     onchange  : se llama con la api cada vez que algo cambia
-   }
-
-   El estado vive en `api` y es puramente numérico: `orden` es la secuencia de
-   índices originales, `giro` los grados por índice, `fuera` las descartadas y
-   `sel` las marcadas. Ninguna herramienta modifica el PDF mientras el usuario
-   juega; recién al guardar se traduce este estado a operaciones de pdf-lib. */
 /* ── Tamaño de las miniaturas ──────────────────────────────────────────────
    Una escala de 1 a 10 en vez de adjetivos: «grande» y «enorme» no le dicen
    nada a nadie hasta que los prueba, y además obligaban a inventar más palabras
@@ -1930,6 +1947,8 @@ var nivelZoom = (function(){
   } catch(e){}
   return 5;                                   /* el centro de la escala */
 })();
+/* localStorage puede lanzar excepción —modo privado, cookies bloqueadas— y un
+   ajuste de tamaño no debe voltear la herramienta, de ahí el try. */
 function guardaZoom(){
   try { localStorage.setItem(ZOOM_CLAVE, String(nivelZoom)); } catch(e){}
 }
@@ -1961,6 +1980,25 @@ function barraZoom(caja, alRedibujar){
   return barra;
 }
 
+/* Superficie compartida por dividir, ordenar, firmar, exportar y comprimir.
+
+   opt = {
+     seleccion : clic para marcar/desmarcar varias
+     unica     : clic para elegir UNA (excluyente con seleccion)
+     rotar     : botones ↺ ↻ en cada hoja
+     borrar    : botón ✕ en cada hoja
+     mover     : arrastrar para reordenar
+     pie       : función(idx) que devuelve un elemento colgado bajo la miniatura
+     capa      : función(idx, marco) que puede colgar una capa ENCIMA de la
+                 miniatura. Se llama al pintar y cada vez que llega el dibujo
+                 de verdad, para que la capa se ajuste al tamaño definitivo
+     onchange  : se llama con la api cada vez que algo cambia
+   }
+
+   El estado vive en `api` y es puramente numérico: `orden` es la secuencia de
+   índices originales, `giro` los grados por índice, `fuera` las descartadas y
+   `sel` las marcadas. Ninguna herramienta modifica el PDF mientras el usuario
+   juega; recién al guardar se traduce este estado a operaciones de pdf-lib. */
 function rejilla(host, u8, opt){
   opt = opt || {};
   var caja = el('div','light'), hojas = el('div','sheets');
@@ -2207,7 +2245,10 @@ function hexARgb(h){
   var n = parseInt(m[1], 16);
   return PL.rgb(((n >> 16) & 255)/255, ((n >> 8) & 255)/255, (n & 255)/255);
 }
+/* Acepta '#abc' y '#aabbcc', con o sin almohadilla. */
 function hexValido(h){ return /^#?[\da-f]{6}$/i.test(String(h).trim()); }
+/* Lleva cualquier forma válida a '#aabbcc' en minúsculas, que es lo que espera
+   el <input type=color>: con tres dígitos o sin almohadilla no lo acepta. */
 function normHex(h){ h = String(h).trim(); return (h[0] === '#' ? h : '#' + h).toLowerCase(); }
 
 /* Devuelve { el, hex(), rgb() }: el bloque de controles listo para colgar, y
@@ -2336,6 +2377,26 @@ var FAMILIAS = [
   ['courier',   'Courier', 'CourierBold', 'CourierOblique', 'CourierBoldOblique']
 ];
 
+/* ── Tipografías del sistema ──────────────────────────────────────────────
+   Solo las usa la firma escrita, que NO dibuja con las fuentes del PDF sino
+   sobre un lienzo que después se convierte en imagen. Por eso puede ofrecer
+   cualquier familia instalada y acepta emojis y alfabetos que el resto del
+   editor tiene que descartar.
+
+   Cada entrada lleva una PILA de respaldos, no un solo nombre: no hay forma
+   fiable de saber qué tiene instalado el usuario, así que se nombran varias
+   equivalentes y el navegador toma la primera que exista. La última de cada
+   pila es una familia genérica, que siempre resuelve a algo.
+
+   El nombre visible se traduce con T.fonts, salvo los que son marcas —Georgia,
+   Courier New— que no se traducen. */
+var SISTEMA = [
+  ['manuscrita', "'Segoe Script','Bradley Hand','Brush Script MT','Snell Roundhand',cursive"],
+  ['serifa',     "Georgia,'Times New Roman',Times,serif"],
+  ['palo',       "'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif"],
+  ['mono',       "'Courier New',Courier,'DejaVu Sans Mono',monospace"]
+];
+
 /* familia + negrita + cursiva → la constante de StandardFonts que toca */
 function fuenteEstandar(fam, negrita, cursiva){
   var f = FAMILIAS.filter(function(x){ return x[0] === fam; })[0] || FAMILIAS[0];
@@ -2343,16 +2404,29 @@ function fuenteEstandar(fam, negrita, cursiva){
   return PL.StandardFonts[f[i]];
 }
 
-/* Bloque de controles de tipografía, idéntico en texto y marca de agua. */
-/* `alCambiar` permite que quien lo usa repinte una vista previa.
-   `estilo()` traduce la elección a CSS: las 14 fuentes estándar del PDF no
-   existen como archivo, así que en pantalla se aproximan con las familias
-   equivalentes que sí trae el sistema. */
-function selectorFuente(tamInicial, alCambiar, sinTam){
+/* Bloque de controles de tipografía: familia, cuerpo, negrita y cursiva.
+
+   Sirve a DOS mundos distintos según el parámetro `sistema`:
+
+     · apagado (por omisión) → las tres familias estándar del PDF. `fuente()`
+       devuelve la constante de StandardFonts que hay que incrustar, y
+       `estilo()` una aproximación en CSS para las vistas previas.
+     · encendido → las familias del sistema, para la firma escrita, que dibuja
+       sobre un lienzo y no necesita fuentes del PDF. Ahí `fuente()` no aplica
+       y `estilo()` es lo que de verdad se usa.
+
+   En ambos casos las variantes son las mismas cuatro —regular, negrita,
+   cursiva, negrita+cursiva— y se resuelven igual, así que el control es uno
+   solo y no dos parecidos.
+
+   `alCambiar` permite que quien lo usa repinte una vista previa; `sinTam`
+   esconde el campo de cuerpo cuando el tamaño sale de otro control. */
+function selectorFuente(tamInicial, alCambiar, sinTam, sistema){
+  var LISTA = sistema ? SISTEMA : FAMILIAS;
   var caja = el('div','row');
   caja.innerHTML =
     '<div class="field"><label class="lF"></label><select class="fam">' +
-      FAMILIAS.map(function(f){ return '<option value="' + f[0] + '"></option>'; }).join('') +
+      LISTA.map(function(f){ return '<option value="' + f[0] + '"></option>'; }).join('') +
     '</select></div>' +
     '<div class="field" style="flex:0 0 auto"><label class="lT"></label>' +
       '<input type="number" class="tam" min="4" max="200" step="1" value="' + (tamInicial || 11) + '"></div>' +
@@ -2363,7 +2437,7 @@ function selectorFuente(tamInicial, alCambiar, sinTam){
   $('.lT', caja).textContent = T.fonts.size;
   $('.neg', caja).textContent = T.fonts.bold;
   $('.cur', caja).textContent = T.fonts.italic;
-  FAMILIAS.forEach(function(f){ $('option[value=' + f[0] + ']', caja).textContent = T.fonts[f[0]]; });
+  LISTA.forEach(function(f){ $('option[value=' + f[0] + ']', caja).textContent = T.fonts[f[0]]; });
 
   /* Hay herramientas donde el cuerpo de la letra no se elige a mano porque sale
      de otro control; ahí el campo estorba y se esconde. */
@@ -2376,7 +2450,8 @@ function selectorFuente(tamInicial, alCambiar, sinTam){
   $('.fam', caja).onchange = avisa;
   $('.tam', caja).oninput  = avisa;
 
-  /* El orden importa: Arial y Times New Roman fueron diseñadas con las MISMAS
+  /* Aproximación en CSS de cada familia del PDF, para las vistas previas.
+     El orden importa: Arial y Times New Roman fueron diseñadas con las MISMAS
      anchuras que Helvetica y Times, así que una vista previa hecha con ellas
      mide igual que el PDF final. Georgia, en cambio, es bastante más ancha; si
      encabezara la lista, el texto de la vista previa saldría más largo que el
@@ -2386,12 +2461,19 @@ function selectorFuente(tamInicial, alCambiar, sinTam){
     times:     "'Times New Roman',Times,serif",
     courier:   "'Courier New',Courier,monospace"
   };
+  function pila(){
+    var k = $('.fam', caja).value;
+    if(!sistema) return CSS[k];
+    return (SISTEMA.filter(function(f){ return f[0] === k; })[0] || SISTEMA[0])[1];
+  }
   return {
     el: caja,
     tam: function(){ return Math.max(4, Math.min(200, +$('.tam', caja).value || 11)); },
+    /* solo tiene sentido con las fuentes del PDF */
     fuente: function(){ return fuenteEstandar($('.fam', caja).value, neg, cur); },
+    /* plantilla de CSS con un hueco {0} para el cuerpo en píxeles */
     estilo: function(){
-      return (cur ? 'italic ' : '') + (neg ? '700 ' : '400 ') + '{0}px ' + CSS[$('.fam', caja).value];
+      return (cur ? 'italic ' : '') + (neg ? '700 ' : '400 ') + '{0}px ' + pila();
     }
   };
 }
@@ -2412,10 +2494,42 @@ function plantillaPagina(txt, n, total, nombre){
    el usuario reciba su PDF con los caracteres que sí se pueden, en vez de un
    error a mitad de camino. Devuelve el texto podado y cuántos cayeron. */
 function podaWinAnsi(txt){
-  var fuera = 0;
-  var limpio = String(txt).replace(/[^\x20-\x7E\xA0-\xFF\u20AC\u201A\u201C\u201D\u2018\u2019\u2013\u2014\u2022\u2026]/g,
-    function(){ fuera++; return ''; });
-  return { txt: limpio, fuera: fuera };
+  var perdidos = [];
+  /* Se descarta por PUNTO DE CÓDIGO y no por unidad UTF-16: un emoji ocupa dos
+     unidades, y filtrarlas sueltas dejaría medio carácter suelto en el texto.
+     El indicador `u` hace que el punto abarque el par completo. */
+  var limpio = String(txt).replace(/[^\x20-\x7E\xA0-\xFF\u20AC\u201A\u201C\u201D\u2018\u2019\u2013\u2014\u2022\u2026]/gu,
+    function(c){ if(perdidos.indexOf(c) < 0) perdidos.push(c); return ''; });
+  return { txt: limpio, fuera: perdidos.length, perdidos: perdidos };
+}
+
+/* DÓNDE HACE FALTA PODAR, Y DÓNDE NO. Medido, no supuesto:
+
+     · drawText()            → LANZA con un emoji. Lo usan marca de agua,
+                               numerar y la firma escrita.
+     · campos de formulario  → LANZA al guardar, con el mismo error.
+     · metadatos             → los acepta y los devuelve intactos: van como
+                               cadena de texto del documento, no se dibujan.
+     · contraseñas           → las maneja qpdf, que trabaja sobre bytes UTF-8.
+                               Se probó proteger y desbloquear con «clave📄2026»
+                               y funciona.
+     · un PDF ajeno que YA trae emojis → se edita sin problema. Ese texto es
+                               contenido de la página con su fuente incrustada;
+                               nosotros no lo recodificamos.
+
+   O sea: se poda donde el texto se DIBUJA sobre la página con una de las
+   catorce fuentes estándar, y solo ahí. */
+
+/* Cuelga —o quita— el aviso de caracteres descartados bajo un campo de texto.
+   Antes se podaban en silencio: uno escribía un emoji, no aparecía en la vista
+   previa ni en el PDF, y no había forma de saber por qué. */
+function avisaPoda(host, poda){
+  var v = $('.poda', host);
+  if(!poda.fuera){ if(v) v.remove(); return; }
+  if(!v){ v = el('div','warn poda','<strong></strong><span></span>'); host.appendChild(v); }
+  $('strong', v).textContent = fmt(plural(poda.fuera, T.common.dropped),
+                                   poda.fuera, poda.perdidos.join(' '));
+  $('span', v).textContent = T.common.droppedHint;
 }
 
 
@@ -2512,7 +2626,13 @@ function filaArrastrable(r, i, lista, repintar){
   });
 }
 
-/* ── Unir ───────────────────────────────────────────────────────────────── */
+/* ── Unir ──────────────────────────────────────────────────────────────────
+   La única herramienta que recibe VARIOS archivos, así que no usa unSoloPDF()
+   sino su propia lista con arrastre para reordenar. Los archivos se copian en
+   el orden de la lista mediante una cadena de promesas y no con Promise.all,
+   porque este último los resolvería en cualquier orden. El resultado hereda los
+   metadatos del PRIMERO: es el que abre el documento y el único criterio que no
+   es arbitrario.                                                             */
 HERR.unir = {
   nombre: T.merge.name, desc: T.merge.desc,
   build: function(c){
@@ -2581,7 +2701,16 @@ HERR.unir = {
   }
 };
 
-/* ── Dividir ────────────────────────────────────────────────────────────── */
+/* ── Dividir ───────────────────────────────────────────────────────────────
+   Tres formas de partir: por rangos escritos a mano, cada N páginas, o una
+   página por archivo. Las tres producen la misma estructura —una lista de
+   grupos de índices— y de ahí en adelante el código es común.
+
+   Es una de las DOS herramientas que conservan la caja de descargas, porque
+   puede producir muchos archivos y hace falta ofrecer el ZIP. La otra es
+   PDF → imágenes; el resto descarga directo.
+
+   Cada trozo hereda los metadatos del original.                              */
 HERR.dividir = {
   nombre: T.split.name, desc: T.split.desc,
   build: function(c){
@@ -3097,7 +3226,20 @@ HERR.imagenes = {
   }
 };
 
-/* ── PDF → imágenes ─────────────────────────────────────────────────────── */
+/* ── PDF → imágenes ────────────────────────────────────────────────────────
+   Rasteriza las páginas elegidas con pdf.js. Es la única herramienta que NO
+   puede funcionar sin él: en el resto las miniaturas son un lujo y la rejilla
+   cae a tarjetas numeradas, pero acá el dibujo ES el producto.
+
+   Los formatos son los tres que garantiza el canvas del navegador —PNG, JPEG y
+   WEBP—. No hay más que sacar sin librerías: si se pide otro, la especificación
+   dice que la salida cae en silencio a PNG.
+
+   La resolución se pide en ppp y se traduce a una escala sobre el tamaño en
+   puntos de cada página, que es como la gente piensa una impresión.
+
+   Conserva la caja de descargas, igual que Dividir, por producir varios
+   archivos.                                                                  */
 HERR.aimagenes = {
   nombre: T.pdfToImages.name, desc: T.pdfToImages.desc,
   build: function(c){
@@ -3217,7 +3359,33 @@ HERR.aimagenes = {
   }
 };
 
-/* ── Firmar ─────────────────────────────────────────────────────────────── */
+/* ── Firmar ────────────────────────────────────────────────────────────────
+   Tres formas de conseguir una firma y una sola de colocarla.
+
+   LAS TRES FORMAS terminan todas en un PNG con fondo transparente, que es lo
+   que espera el colocador. Dibujar y Escribir pintan sobre un lienzo; Subir
+   imagen rasteriza lo que llegue. Por eso `fijaFirma(png)` es el único punto
+   de entrada al colocador, y cambiar de pestaña descarta la firma anterior:
+   sin eso quedaba una firma vieja activa sin que se viera, y el PDF salía con
+   las dos.
+
+   ESCRIBIR NO USA LAS FUENTES DEL PDF. Dibuja en un lienzo y lo convierte en
+   imagen, así que puede usar cualquier familia del sistema y —a diferencia del
+   resto del editor— acepta emojis y cualquier alfabeto. De ahí que su selector
+   de tipografía se pida con `selectorFuente(…, sistema)` en vez de las tres
+   familias estándar, y que acá no haya nada que podar con podaWinAnsi().
+
+   ORDEN DE LOS CONTROLES, en Dibujar y en Escribir: primero lo que define el
+   aspecto de la firma —color, tipografía— y debajo la zona donde aparece. En
+   Escribir el propio campo de texto se muestra con la tipografía y el color
+   elegidos, así que hace de vista previa. En Dibujar importa más todavía:
+   cambiar el color NO repinta lo ya trazado, porque el lienzo guarda píxeles y
+   no trazos, así que el control tiene que verse ANTES de empezar a firmar.
+
+   EL COLOCADOR usa anclaje() para pasar de «donde se ve» a coordenadas del
+   PDF, respetando la rotación de la página. Con un documento de UNA sola página
+   se salta la rejilla: no hay nada que elegir, y mostrar una miniatura suelta
+   junto al aviso de que elegir otra hoja descarta la anterior solo estorba.  */
 HERR.firmar = {
   nombre: T.sign.name, desc: T.sign.desc,
   build: function(c){
@@ -3337,11 +3505,16 @@ HERR.firmar = {
           requestAnimationFrame(ajusta);              /* por si aún no hubo layout */
           window.addEventListener('resize', ajusta);
 
-          /* Cambiar el color no puede repintar lo ya dibujado (el canvas no
-             guarda los trazos, solo píxeles), así que se aplica de ahí en
-             adelante. Es el mismo comportamiento de cualquier lápiz. */
+          /* El color va ANTES del pizarrón, igual que en «Escribir»: lo que
+             define el aspecto de la firma queda arriba y el trazo debajo.
+
+             Cambiarlo NO repinta lo ya dibujado —el canvas guarda píxeles, no
+             trazos— así que se aplica de ahí en adelante, como cualquier lápiz.
+             Por eso el control va arriba y no abajo: se elige el color y luego
+             se firma, en vez de firmar y descubrir después que el control
+             existía. */
           var selC = selectorColor(colorFirma, function(v){ colorFirma = v; cx.strokeStyle = v; });
-          cre.appendChild(selC.el);
+          cre.insertBefore(selC.el, cre.firstChild);
 
           var a = el('div','actions');
           var lim = el('button','ghost'); lim.textContent = T.sign.clearStroke;
@@ -3405,19 +3578,38 @@ HERR.firmar = {
           };
 
         } else {
-          cre.innerHTML =
-            '<div class="row"><div class="field"><label class="lNm"></label>' +
-              '<input type="text" id="nm"></div>' +
-              '<div class="field" style="flex:0 0 auto"><label class="lFf"></label>' +
-              '<select id="ff"><option value="cursiva"></option><option value="palo"></option></select></div></div>';
+          /* El selector va ANTES del campo, y el campo se escribe con la
+             tipografía elegida: así el propio campo es la vista previa y no hay
+             que imaginarse cómo va a quedar la firma.
+
+             Es el mismo selector que usan numerar y marca de agua, pero con las
+             familias del SISTEMA: acá se dibuja sobre un lienzo, no con las
+             fuentes del PDF. El cuerpo se esconde porque lo decide el tamaño al
+             que se coloque la firma sobre la página, no un número. */
+          var tipoFirma = selectorFuente(0, function(){ pintaCampo(); }, true, true);
+          cre.appendChild(tipoFirma.el);
+          var hFace = el('p','hint'); hFace.textContent = T.sign.faceHint;
+          cre.appendChild(hFace);
+
+          /* El color va antes del campo por lo mismo que la tipografía: todo lo
+             que cambia el aspecto de la firma queda arriba, y el campo debajo
+             mostrando el resultado. */
+          var selC2 = selectorColor(colorFirma, function(v){ colorFirma = v; pintaCampo(); });
+          cre.appendChild(selC2.el);
+
+          var campoNm = el('div','field');
+          campoNm.innerHTML = '<label class="lNm"></label><input type="text" id="nm" class="firmaViva">';
+          cre.appendChild(campoNm);
           $('.lNm', cre).textContent = T.sign.yourName;
           $('#nm', cre).placeholder = T.sign.namePlaceholder;
-          $('.lFf', cre).textContent = T.sign.stroke;
-          $('option[value=cursiva]', cre).textContent = T.sign.cursive;
-          $('option[value=palo]', cre).textContent    = T.sign.regular;
 
-          var selC2 = selectorColor(colorFirma, function(v){ colorFirma = v; });
-          cre.appendChild(selC2.el);
+          /* 30 px: bastante más que un campo corriente, para que el trazo se
+             aprecie, pero sin que el bloque de controles se desarme. */
+          function pintaCampo(){
+            $('#nm', cre).style.font = fmt(tipoFirma.estilo(), 30);
+            $('#nm', cre).style.color = colorFirma;
+          }
+          pintaCampo();
 
           var a2 = el('div','actions'), us2 = el('button','btn');
           us2.textContent = T.sign.use;
@@ -3426,7 +3618,6 @@ HERR.firmar = {
           us2.onclick = function(){
             var txt = $('#nm', cre).value.trim();
             if(!txt){ toast(T.sign.typeYourName); return; }
-            var cur = $('#ff', cre).value === 'cursiva';
 
             /* El lienzo se hace del porte del texto en vez de ser fijo: con un
                tamaño fijo, un nombre largo se cortaba en seco. Si aun así se
@@ -3435,11 +3626,9 @@ HERR.firmar = {
                OJO: fijar width BORRA el contexto, así que fuente y color se
                vuelven a poner después de redimensionar. */
             var cv3 = el('canvas'), cx3 = cv3.getContext('2d');
-            var tam = cur ? 130 : 120;
-            var fuente = function(t){
-              return cur ? "italic 500 " + t + "px 'Archivo',Georgia,'Times New Roman',serif"
-                         : "600 " + t + "px 'Archivo','Segoe UI',Arial,sans-serif";
-            };
+            var tam = 130;
+            /* la plantilla del selector, con el hueco del cuerpo por rellenar */
+            var fuente = function(t){ return fmt(tipoFirma.estilo(), t); };
             cx3.font = fuente(tam);
             var ancho = cx3.measureText(txt).width;
             if(ancho > 5000){
@@ -3466,16 +3655,24 @@ HERR.firmar = {
         zonaColoc.innerHTML = '';
         var elegida = 0, sello = null, vista = null, ang = 0;
 
-        var api = rejilla(zonaColoc, u8, {unica:true, onchange:function(a){ elegida = a.elegida; lienzo(); }});
-        api.arranca(doc.getPageCount());
+        /* Con una sola página no hay nada que elegir: la rejilla mostraría una
+           miniatura suelta junto a un aviso sobre elegir otra hoja, y ambas
+           cosas sobran. Se da por seleccionada y se va derecho a colocar. */
+        var unaSola = doc.getPageCount() === 1;
+        if(!unaSola){
+          var api = rejilla(zonaColoc, u8, {unica:true, onchange:function(a){ elegida = a.elegida; lienzo(); }});
+          api.arranca(doc.getPageCount());
+        }
 
         var ayuda = el('p','note'); ayuda.textContent = T.sign.placeHelp;
         zonaColoc.appendChild(ayuda);
-        /* La rejilla es de selección única, así que elegir otra hoja descarta
-           la anterior sin más aviso que el propio recuadro. Conviene decirlo. */
-        var solo = el('div','warn'); solo.innerHTML = '<span></span>';
-        $('span', solo).textContent = T.sign.onlyOne;
-        zonaColoc.appendChild(solo);
+        if(!unaSola){
+          /* La rejilla es de selección única, así que elegir otra hoja descarta
+             la anterior sin más aviso que el propio recuadro. Conviene decirlo. */
+          var solo = el('div','warn'); solo.innerHTML = '<span></span>';
+          $('span', solo).textContent = T.sign.onlyOne;
+          zonaColoc.appendChild(solo);
+        }
 
         var wrap = el('div');
         wrap.style.cssText = 'display:flex;justify-content:center;padding:14px 0';
@@ -3959,7 +4156,17 @@ HERR.comprimir = {
   }
 };
 
-/* ── Proteger (qpdf) ────────────────────────────────────────────────────── */
+/* ── Proteger (qpdf) ───────────────────────────────────────────────────────
+   Cifrado AES-256 con qpdf. pdf-lib no sabe cifrar, de ahí el motor externo.
+
+   Se piden DOS contraseñas porque el PDF distingue la de usuario —la que abre
+   el archivo— de la de propietario, que levanta las restricciones. Los permisos
+   de impresión, copia y edición son parte del cifrado, no una capa aparte: un
+   lector que respete el estándar los hará cumplir.
+
+   La contraseña viaja a qpdf como argumento de línea de comandos y él la trata
+   como bytes UTF-8, así que acepta acentos y hasta emojis; no hay que podarla
+   como sí ocurre con el texto que se dibuja sobre la página.                 */
 HERR.proteger = {
   nombre: T.protect.name, motor:true, desc: T.protect.desc,
   build: function(c){
@@ -4152,7 +4359,21 @@ function vistaPagina(pg){
 }
 
 
-/* ── Numerar, encabezado y pie ──────────────────────────────────────────── */
+/* ── Numerar, encabezado y pie ─────────────────────────────────────────────
+   Estampa una línea de texto en una de seis posiciones de cada página.
+
+   La plantilla admite marcadores —{n}, {total}, {nombre}, {fecha}— que se
+   resuelven por página, así que el texto de la hoja 3 no es el mismo que el de
+   la 4. plantillaPagina() hace esa sustitución y la usan tanto la vista previa
+   como el estampado.
+
+   LA VISTA PREVIA va sobre las miniaturas, con la opción `capa` de rejilla():
+   el texto se coloca en porcentajes con la misma lógica de posición que el
+   estampado. No hace falta medir el ancho del texto porque CSS resuelve las
+   tres alineaciones con left, right y un translate del 50%.
+
+   El texto se dibuja con una de las tres familias estándar del PDF, así que
+   pasa por podaWinAnsi() y avisa de lo que no se puede escribir.             */
 HERR.texto = {
   nombre: T.text.name, desc: T.text.desc,
   build: function(c){
@@ -4274,6 +4495,7 @@ HERR.texto = {
         var ini = +$('#ini',pan).value || 0;
         var p = podaWinAnsi(plantillaPagina($('#txt',pan).value, ini, total, nombre));
         $('#prev',pan).textContent = T.text.preview + (p.txt || '—');
+        avisaPoda($('#txt',pan).parentNode, p);
         api.capas();
       }
       /* todo lo que cambia el resultado tiene que redibujar las miniaturas */
@@ -4430,7 +4652,12 @@ HERR.agua = {
       function opac(){  return (+$('#op',pan).value)/100; }
       function angulo(){ return +$('#rot',pan).value; }
       function escala(){ return (+$('#esc',pan).value)/100; }
-      function texto(){ return usaT ? podaWinAnsi($('#txt',pan).value).txt : ''; }
+      function texto(){
+        if(!usaT) return '';
+        var p = podaWinAnsi($('#txt',pan).value);
+        avisaPoda($('#txt',pan).parentNode, p);
+        return p.txt;
+      }
 
       function refresca(){
         $('#cT',pan).classList.toggle('on', usaT);
@@ -5259,8 +5486,16 @@ HERR.formularios = {
           inp.onfocus = enfoca;
           inp.onblur  = function(){ if(activo === nom){ activo = null; pintaValores(); } };
           /* al instante: lo único que corre es reescribir un nodo de texto */
-          inp.oninput = function(){ valores[nom] = {texto: inp.value}; pintaValores(); };
-          lectores.push(function(fm){ fm.getTextField(nom).setText(inp.value); });
+          inp.oninput = function(){
+            var p = podaWinAnsi(inp.value);
+            avisaPoda(f, p);
+            valores[nom] = {texto: p.txt};
+            pintaValores();
+          };
+          /* Se guarda el texto PODADO: setText() lanza con un emoji y ahí se
+             cae el guardado entero, después de haber rellenado medio formulario.
+             La vista previa ya muestra lo mismo que va a quedar. */
+          lectores.push(function(fm){ fm.getTextField(nom).setText(podaWinAnsi(inp.value).txt); });
 
         } else if(campo instanceof PL.PDFCheckBox){
           var chk = el('label','check','<input type="checkbox"><span></span>');
@@ -5295,9 +5530,12 @@ HERR.formularios = {
           controlDe[nom] = sel;
           sel.onfocus = enfoca;
           sel.onchange = function(){ valores[nom] = {texto: sel.value}; enfoca(); };
+          /* las opciones vienen del propio PDF, así que ya están en WinAnsi;
+             aun así se poda por si el documento trae una fuera de rango */
           lectores.push(function(fm){
             if(!sel.value) return;
-            (campo instanceof PL.PDFDropdown ? fm.getDropdown(nom) : fm.getOptionList(nom)).select(sel.value);
+            (campo instanceof PL.PDFDropdown ? fm.getDropdown(nom) : fm.getOptionList(nom))
+              .select(podaWinAnsi(sel.value).txt);
           });
 
         } else if(campo instanceof PL.PDFRadioGroup){
