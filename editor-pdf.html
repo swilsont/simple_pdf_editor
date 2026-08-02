@@ -4367,6 +4367,12 @@ function vistaPagina(pg){
    la 4. plantillaPagina() hace esa sustitución y la usan tanto la vista previa
    como el estampado.
 
+   EL ORDEN DE LOS CONTROLES sigue el de Firmar y Marca de agua: la tipografía y
+   el color van antes del campo, y el campo se escribe con lo elegido. A
+   diferencia de la marca de agua, acá el cuerpo de letra SÍ se elige a mano
+   —son puntos sobre la página, no una fracción del ancho— así que ese campo
+   queda a la vista.
+
    LA VISTA PREVIA va sobre las miniaturas, con la opción `capa` de rejilla():
    el texto se coloca en porcentajes con la misma lógica de posición que el
    estampado. No hace falta medir el ancho del texto porque CSS resuelve las
@@ -4394,8 +4400,13 @@ HERR.texto = {
 
       var pan = el('div','panel');
       pan.innerHTML =
+        /* La tipografía y el color van ANTES del campo, y el campo se escribe
+           con lo elegido: así hace de vista previa además de la que va sobre
+           las miniaturas. Mismo orden que Firmar y Marca de agua. Los dos
+           selectores se cuelgan más abajo, en este hueco. */
+        '<div id="estilo"></div>' +
         '<div class="field"><label class="lTxt"></label>' +
-          '<input type="text" id="txt"><span class="hint hTok"></span></div>' +
+          '<input type="text" id="txt" class="firmaViva"><span class="hint hTok"></span></div>' +
         '<div class="row">' +
           '<div class="field"><label class="lPos"></label><select id="pos">' +
             ['tl','tc','tr','bl','bc','br'].map(function(k){
@@ -4426,10 +4437,14 @@ HERR.texto = {
       $('[data-c=marcadas]',pan).textContent = T.text.selectedPages;
       host.appendChild(pan);
 
+      /* Acá el cuerpo de letra SÍ se elige a mano —es un número de puntos sobre
+         la página, no una fracción como en la marca de agua— así que el campo
+         de tamaño queda a la vista. */
+      var hueco = $('#estilo', pan);
       var tipo = selectorFuente(11, function(){ vistaPrevia(); });
-      host.appendChild(tipo.el);
+      hueco.appendChild(tipo.el);
       var col = selectorColor('#111111', function(){ vistaPrevia(); });
-      host.appendChild(col.el);
+      hueco.appendChild(col.el);
 
       /* los botones de selección solo tienen sentido si el texto va a algunas
          páginas; con «Todas» estorban */
@@ -4496,6 +4511,9 @@ HERR.texto = {
         var p = podaWinAnsi(plantillaPagina($('#txt',pan).value, ini, total, nombre));
         $('#prev',pan).textContent = T.text.preview + (p.txt || '—');
         avisaPoda($('#txt',pan).parentNode, p);
+        /* el campo se escribe con lo elegido, así hace de vista previa */
+        $('#txt',pan).style.font  = fmt(tipo.estilo(), 22);
+        $('#txt',pan).style.color = col.hex();
         api.capas();
       }
       /* todo lo que cambia el resultado tiene que redibujar las miniaturas */
@@ -4547,8 +4565,16 @@ HERR.texto = {
   }
 };
 
-/* ── Marca de agua ──────────────────────────────────────────────────────── */
-/* Un PDF solo admite que le AGREGUEN contenido: no hay forma de meter algo por
+/* ── Marca de agua ─────────────────────────────────────────────────────────
+   Estampa un texto O una imagen sobre todas las páginas. Es una elección, no
+   dos interruptores: superponer ambos producía un amasijo y obligaba a decidir
+   cuál va encima, sin que nadie lo hubiera pedido.
+
+   El orden de los controles sigue el de Firmar: la tipografía y el color van
+   antes del campo, y el campo se escribe con lo elegido, así que hace de vista
+   previa además de la que va sobre las miniaturas.
+
+   Un PDF solo admite que le AGREGUEN contenido: no hay forma de meter algo por
    debajo de lo ya dibujado. Por eso la marca siempre queda encima y la opacidad
    es lo único que la vuelve usable. La interfaz lo dice, para que nadie espere
    el efecto de «marca de fondo» que tienen los procesadores de texto.
@@ -4577,17 +4603,25 @@ HERR.agua = {
       var medidor = el('canvas').getContext('2d');
 
       /* Las miniaturas van ARRIBA del todo, justo bajo «Abrir otro PDF». */
-      var usaT = true, usaI = false, modo = 'centro';
+      var que = 'texto', modo = 'centro';    /* qué se estampa: texto o imagen */
       var api = rejilla(host, u8, {capa: capa});
       var nota = el('p','note'); nota.textContent = T.watermark.previewNote;
       host.appendChild(nota);
 
       var pan = el('div','panel');
       pan.innerHTML =
+        /* Texto O imagen, no las dos: superponerlas producía un amasijo y
+           obligaba a decidir cuál va encima. Los chips son excluyentes, como
+           los de posición de más abajo. */
         '<div class="field"><label class="lQue"></label><div class="opts">' +
-          '<button type="button" class="chip on" id="cT"></button>' +
-          '<button type="button" class="chip" id="cI"></button></div></div>' +
-        '<div class="field" id="boxT"><label class="lTxt"></label><input type="text" id="txt"></div>' +
+          '<button type="button" class="chip on" data-q="texto"></button>' +
+          '<button type="button" class="chip" data-q="imagen"></button></div></div>' +
+        /* La tipografía y el color van ANTES del campo, y el campo se escribe
+           con lo elegido: así hace de vista previa, igual que en Firmar. Los
+           dos selectores se cuelgan más abajo, en este hueco. */
+        '<div id="estilo"></div>' +
+        '<div class="field" id="boxT"><label class="lTxt"></label>' +
+          '<input type="text" id="txt" class="firmaViva"></div>' +
         '<div class="field" id="boxI" hidden><label class="lImg"></label>' +
           '<input type="file" id="img" accept="image/*">' +
           '<span class="hint hImg"></span><span class="hint mono" id="nImg"></span></div>' +
@@ -4612,8 +4646,8 @@ HERR.agua = {
             '<input type="number" id="filas" min="1" max="12" step="1" value="3"></div>' +
         '</div>';
       $('.lQue',pan).textContent = T.watermark.what;
-      $('#cT',pan).textContent   = T.watermark.useText;
-      $('#cI',pan).textContent   = T.watermark.useImage;
+      $('[data-q=texto]',pan).textContent  = T.watermark.useText;
+      $('[data-q=imagen]',pan).textContent = T.watermark.useImage;
       $('.lTxt',pan).textContent = T.watermark.useText;
       $('#txt',pan).value        = T.watermark.textDefault;
       $('.lImg',pan).textContent = T.watermark.useImage;
@@ -4629,14 +4663,18 @@ HERR.agua = {
       $('[data-p=mosaico]',pan).textContent = T.watermark.tiled;
       host.appendChild(pan);
 
-      /* El cuerpo va oculto a propósito: el tamaño del texto lo decide
-         «Tamaño respecto de la página», igual que el de la imagen. Tener dos
-         controles de tamaño peleando era justo lo que hacía que el deslizador
-         pareciera no funcionar. */
+      /* Tipografía y color van dentro del panel, en el hueco #estilo que quedó
+         justo encima del campo de texto.
+
+         El cuerpo de letra va oculto a propósito: el tamaño lo decide «Tamaño
+         respecto de la página», igual que el de la imagen. Tener dos controles
+         de tamaño peleando era justo lo que hacía que el deslizador pareciera
+         no funcionar. */
+      var hueco = $('#estilo', pan);
       var tipo = selectorFuente(48, function(){ refresca(); }, true);
-      host.appendChild(tipo.el);
+      hueco.appendChild(tipo.el);
       var col = selectorColor('#6B6B6B', function(){ refresca(); });
-      host.appendChild(col.el);
+      hueco.appendChild(col.el);
       var aviso = el('p','note'); aviso.textContent = T.watermark.onTopNote;
       host.appendChild(aviso);
 
@@ -4653,30 +4691,35 @@ HERR.agua = {
       function angulo(){ return +$('#rot',pan).value; }
       function escala(){ return (+$('#esc',pan).value)/100; }
       function texto(){
-        if(!usaT) return '';
+        if(que !== 'texto') return '';
         var p = podaWinAnsi($('#txt',pan).value);
         avisaPoda($('#txt',pan).parentNode, p);
         return p.txt;
       }
 
       function refresca(){
-        $('#cT',pan).classList.toggle('on', usaT);
-        $('#cI',pan).classList.toggle('on', usaI);
-        $('#boxT',pan).hidden   = !usaT;
-        $('#boxI',pan).hidden   = !usaI;
+        var usaT = que === 'texto';
+        Array.prototype.forEach.call(pan.querySelectorAll('[data-q]'), function(o){
+          o.classList.toggle('on', o.dataset.q === que);
+        });
+        $('#boxT',pan).hidden = !usaT;
+        $('#boxI',pan).hidden =  usaT;
         Array.prototype.forEach.call(pan.querySelectorAll('[data-p]'), function(o){
           o.classList.toggle('on', o.dataset.p === modo);
         });
         $('#mosBox',pan).hidden = modo !== 'mosaico';
-        tipo.el.hidden = !usaT;
-        col.el.hidden  = !usaT;
+        hueco.hidden = !usaT;                /* tipografía y color solo aplican al texto */
+        /* el campo se escribe con lo elegido, así hace de vista previa */
+        $('#txt',pan).style.font  = fmt(tipo.estilo(), 22);
+        $('#txt',pan).style.color = col.hex();
         $('#vOp',pan).textContent  = $('#op',pan).value + ' %';
         $('#vRot',pan).textContent = $('#rot',pan).value + '°';
         $('#vEsc',pan).textContent = $('#esc',pan).value + ' %';
         api.capas();
       }
-      $('#cT',pan).onclick = function(){ usaT = !usaT; refresca(); };
-      $('#cI',pan).onclick = function(){ usaI = !usaI; refresca(); };
+      Array.prototype.forEach.call(pan.querySelectorAll('[data-q]'), function(ch){
+        ch.onclick = function(){ que = ch.dataset.q; refresca(); };
+      });
       ['op','rot','esc','filas','cols'].forEach(function(id){ $('#'+id,pan).oninput = refresca; });
       $('#txt',pan).oninput = refresca;
       Array.prototype.forEach.call(pan.querySelectorAll('[data-p]'), function(ch){
@@ -4702,7 +4745,7 @@ HERR.agua = {
         if(!marco) return;
         var vieja = $('.wmL', marco);
         if(vieja) vieja.remove();
-        var txt = texto(), hayImg = usaI && imagenURL;
+        var txt = texto(), hayImg = que === 'imagen' && imagenURL;
         if(!txt && !hayImg) return;
 
         var ancho = marco.clientWidth || 124;
@@ -4785,13 +4828,13 @@ HERR.agua = {
 
       btn.onclick = function(){
         res.innerHTML = '';
-        if(!texto() && !(usaI && imagen)){ toast(T.watermark.nothing); return; }
+        if(!texto() && !(que === 'imagen' && imagen)){ toast(T.watermark.nothing); return; }
         btn.disabled = true;
         var aj = {op:opac(), ang:angulo(), esc:escala(), color:col.rgb(),
                   txt:texto(), nf:filas(), nc:cols()};
         PL.PDFDocument.load(copiaBuffer(u8), ABRIR).then(function(d){
-          return Promise.all([usaT ? d.embedFont(tipo.fuente()) : null,
-                              usaI ? preparaImagen(d) : null]).then(function(par){
+          return Promise.all([que === 'texto'  ? d.embedFont(tipo.fuente()) : null,
+                              que === 'imagen' ? preparaImagen(d) : null]).then(function(par){
             d.getPages().forEach(function(pg){ estampa(pg, vistaPagina(pg), par[0], par[1], aj); });
             return d.save(GUARDAR);
           });
