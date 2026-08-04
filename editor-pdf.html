@@ -17,7 +17,8 @@
   │    1. Estilos                                                          │
   │    2. Marcado — al empezar el <body> va la tabla del texto fijo, que    │
   │       es lo único traducible fuera del objeto T                        │
-  │    3. pdf-lib, incrustado entero (el 70% del peso del archivo)          │
+  │    3. pdf-lib, incrustado entero: 513 kB, el 80% de la versión         │
+  │       minificada, que es la que se publica                             │
   │    4. Aplicación, dentro de un cierre                                  │
   │        4.1  Textos (objeto T)      4.6  Rejilla de páginas             │
   │        4.2  Utilidades            4.7  Las quince herramientas         │
@@ -73,7 +74,8 @@
   --ink-soft:#6B665D;
   --rule:#C9C4B8;
   --tape:#2A2721;
-  --sheet:#FBFAF7;
+  --sheet:#FBFAF7;                 /* superficies claras: pie de miniatura, campos */
+  --papel:#FFFFFF;                 /* SOLO el papel: blanco, como una hoja impresa */
   --marker:#F5D547;
   --cut:#D93B2B;
   --window:#2E5D8A;
@@ -133,6 +135,15 @@ input[type=range]{width:100%;accent-color:var(--cut)}
 .card span{display:block;font-size:12.5px;color:var(--ink-soft);margin-top:2px}
 .card i{font-style:normal;font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--cut);font-weight:600}
 
+/* Pie de la portada: la insignia «motor externo» se destaca en el color de
+   acento, sin cursiva, para que se reconozca igual que en las tarjetas. */
+.pieGrid{margin-top:4px}
+.pieGrid em{font-style:normal;color:var(--cut);font-weight:600}
+/* El taller apila sus bloques con una separación uniforme; cada herramienta
+   solo tiene que ir colgando hijos y no preocuparse del espaciado. */
+#cuerpo,.apilado{display:flex;flex-direction:column;gap:16px}
+#cuerpo{margin-top:14px}
+
 /* cabecera de herramienta */
 .head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .head h2{margin:0;font-size:21px;font-weight:600;letter-spacing:-.01em}
@@ -184,7 +195,7 @@ input.firmaViva{height:auto;padding:10px 12px;line-height:1.35}
   box-shadow:0 1px 0 rgba(0,0,0,.5),0 6px 14px rgba(0,0,0,.35);
   cursor:pointer;user-select:none;
 }
-.sheet canvas,.sheet .ph{display:block;width:100%;background:var(--sheet)}
+.sheet canvas,.sheet .ph{display:block;width:100%;background:var(--papel)}
 /* El marco existe solo para dar un contenedor posicionado a la capa de vista
    previa: sin él, un absolute encima de la miniatura se anclaría a la hoja
    entera y se saldría sobre el pie y el número de página. */
@@ -208,12 +219,12 @@ input.firmaViva{height:auto;padding:10px 12px;line-height:1.35}
   width:calc(100% / var(--r,1));height:auto}
 /* Vista previa del resultado: la hoja toma la proporción del papel destino y
    la página original se coloca dentro, a escala y con sus márgenes. */
-.sheet .thumb.destino{background:var(--sheet)}
+.sheet .thumb.destino{background:var(--papel)}
 .sheet .thumb.destino canvas,.sheet .thumb.destino .ph{position:absolute;aspect-ratio:auto}
 /* Vista previa de «varias páginas por hoja»: la tarjeta ES la hoja de salida y
    cada celda una de las páginas agrupadas. Todo va en porcentajes para que
    funcione con cualquier tamaño de miniatura sin recalcular nada. */
-.hoja{position:relative;display:block;background:var(--sheet)}
+.hoja{position:relative;display:block;background:var(--papel)}
 .hoja .celda{position:absolute;overflow:hidden}
 .hoja .celda.borde{outline:1px solid var(--rule);outline-offset:-1px}
 /* El lienzo se centra en posición absoluta y NO como elemento flexible. Siendo
@@ -221,7 +232,7 @@ input.firmaViva{height:auto;padding:10px 12px;line-height:1.35}
    página vertical dentro de una celda apaisada salía estirada. Con `absolute`
    queda fuera del reparto de flex y conserva las medidas que le fija el JS. */
 .hoja .celda canvas{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:block}
-.hoja .celda .hueco{width:100%;height:100%;background:var(--sheet)}
+.hoja .celda .hueco{width:100%;height:100%;background:var(--papel)}
 /* Pantalla partida del formulario: campos a la izquierda, página a la derecha.
    El divisor cambia el flex-basis del lado izquierdo; el derecho toma el resto,
    así que basta con un porcentaje para repartir el ancho. */
@@ -235,8 +246,6 @@ input.firmaViva{height:auto;padding:10px 12px;line-height:1.35}
   margin-top:-18px;border-radius:2px;background:var(--ink-soft);opacity:.55}
 .vistaPag{position:relative;display:inline-block;max-width:100%}
 .vistaPag canvas{display:block;max-width:100%;height:auto;box-shadow:0 2px 12px rgba(0,0,0,.45)}
-/* el recuadro del campo que se está editando: sin él, la vista salta de página
-   y uno pierde de vista dónde estaba escribiendo */
 /* Cada valor del formulario, dibujado encima de la página. `pre` conserva los
    espacios que el usuario escriba y el desbordamiento se recorta al recuadro,
    igual que hace un lector de PDF con un texto que no cabe. */
@@ -323,6 +332,11 @@ input.firmaViva{height:auto;padding:10px 12px;line-height:1.35}
    clase. Con el ancho al 100% el campo no cabía junto a las pastillas y
    flex-wrap lo bajaba a una línea propia, que es justo lo que se quería
    evitar. `flex:0 0 auto` remata: sin eso, flexbox lo estira igual. */
+/* «Empezar a numerar en» va a la derecha del texto, angosto: es un número de
+   pocos dígitos. Bajo los 640 px el flex-wrap de .row lo pasa a su propia
+   línea, donde sí ocupa el ancho completo. */
+.field.ini{flex:0 0 auto;width:190px}
+@media (max-width:640px){.field.ini{width:100%}}
 input.colorHex{flex:0 0 auto;width:96px;font-family:var(--mono);
   font-size:12.5px;text-transform:lowercase}
 .colorHex.mal{border-color:var(--cut);background:#FBEDE9}
@@ -365,8 +379,10 @@ input.colorHex{flex:0 0 auto;width:96px;font-family:var(--mono);
 .out .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:500}
 
 /* firma */
+/* Envoltura del lienzo del colocador: lo centra y le da aire arriba y abajo. */
+.centrado{display:flex;justify-content:center;padding:14px 0}
 .pad{background:#fff;border:1px solid var(--rule);border-radius:2px;touch-action:none;cursor:crosshair;display:block;width:100%}
-.canvasWrap{position:relative;display:inline-block;box-shadow:0 6px 14px rgba(0,0,0,.35);background:var(--sheet)}
+.canvasWrap{position:relative;display:inline-block;box-shadow:0 6px 14px rgba(0,0,0,.35);background:var(--papel)}
 .canvasWrap canvas{display:block}
 .stamp{position:absolute;cursor:move;touch-action:none;outline:1px dashed var(--cut);background:rgba(217,59,43,.05)}
 .stamp img{display:block;width:100%;height:100%;pointer-events:none}
@@ -447,7 +463,7 @@ input.colorHex{flex:0 0 auto;width:96px;font-family:var(--mono);
       <p>Todos los archivos se procesan en local, sin subirlos a ningún servidor.</p>
     </div>
     <div class="grid" id="grid"></div>
-    <p class="note" style="margin-top:4px">Las herramientas marcadas <em style="font-style:normal;color:var(--cut);font-weight:600">motor externo</em> descargarán algunos archivos la primera vez que las usas en la sesión, manteniendo siempre tus archivos en el ámbito local.</p>
+    <p class="note pieGrid">Las herramientas marcadas <em>motor externo</em> descargarán algunos archivos la primera vez que las usas en la sesión, manteniendo siempre tus archivos en el ámbito local.</p>
   </section>
 
   <section id="taller" hidden>
@@ -456,7 +472,7 @@ input.colorHex{flex:0 0 auto;width:96px;font-family:var(--mono);
       <h2 id="ttl"></h2>
       <p id="sub"></p>
     </div>
-    <div id="cuerpo" style="display:flex;flex-direction:column;gap:16px;margin-top:14px"></div>
+    <div id="cuerpo"></div>
   </section>
 </main>
 
@@ -718,12 +734,16 @@ var T = {
     /* EN: Drag to change the order, turn with ↺ ↻ and mark the ones to drop with ✕. */
     desc: 'Arrastra para cambiar el orden, gira con ↺ ↻ y marca con ✕ las que se van.',
     /* EN: Click a sheet to select it. The ↺ ↻ buttons on each sheet turn that one alone; the ones below turn every selected sheet at once. */
-    help: 'Haz clic en una hoja para marcarla. Los botones ↺ ↻ de cada hoja giran esa sola; ' +
-          'los de abajo giran todas las marcadas de una vez.',
+    help: 'Haz clic en una hoja para marcarla. Los botones ↺ ↻ ✕ de cada hoja giran o eliminan ' +
+          'esa sola; los de abajo hacen lo mismo con todas las marcadas de una vez.',
     /* EN: ↺ Turn selected — keep the arrow */
     turnLeft: '↺ Girar marcadas',
     /* EN: ↻ Turn selected */
     turnRight: '↻ Girar marcadas',
+    /* EN: ✕ Delete marked — keep the symbol */
+    deleteSel: '✕ Eliminar marcadas',
+    /* EN: A PDF cannot be left with no pages */
+    cantEmpty: 'Un PDF no puede quedarse sin páginas',
     /* EN: Reverse order */
     reverse: 'Invertir orden',
     /* EN: Undo everything */
@@ -878,8 +898,10 @@ var T = {
     /* EN: Type your name */
     typeYourName: 'Escribe tu nombre',
     /* EN: Pick the page above and drag the signature into place. The yellow corner resizes it, the blue circle turns it (hold Shift for 15° steps) and a double click straightens it. */
-    placeHelp: 'Elige arriba la página y arrastra la firma hasta su lugar. La esquina amarilla le cambia el porte, ' +
+    placeHelp: 'Arrastra la firma hasta su lugar. La esquina amarilla le cambia el porte, ' +
                'el círculo azul la gira (con Shift, de a 15°) y el doble clic la endereza.',
+    /* EN: Pick the page above and  — prefix used only when the document has more than one page */
+    placePick: 'Elige arriba la página y a',
     /* EN: The signature goes on ONE page only: the one selected above. If you pick another, the previous one is left unsigned. To sign several pages, save and come back for each one. */
     onlyOne: 'La firma va en UNA sola página: la que tengas seleccionada arriba. ' +
              'Si eliges otra, la anterior queda sin firmar. Para firmar varias, ' +
@@ -926,8 +948,8 @@ var T = {
     losslessNote: 'De {0} a {1} — {2}% menos, sin tocar un solo píxel.',
     /* EN: _lighter — filename suffix for the lossless result */
     losslessSuffix: '_liviano',
-    /* EN: Level for every page */
-    levelAll: 'Nivel para todas las páginas',
+    /* EN: Level for several pages */
+    levelAll: 'Nivel para múltiples páginas',
     /* EN: 100 barely touches quality; 0 squeezes as hard as it can. You can change it page by page afterwards. */
     levelHint: '100 casi no toca la calidad; 0 aprieta al máximo. Después puedes cambiar página por página.',
     /* EN: Apply to all */
@@ -936,8 +958,6 @@ var T = {
     applySel: 'Aplicar a las marcadas',
     /* EN: Leave selected untouched */
     keepSel: 'Dejar intactas las marcadas',
-    /* EN: Leave everything untouched */
-    keepAll: 'Dejar todo intacto',
     /* EN: Level for this page. Empty = untouched. */
     perPageTitle: 'Nivel de esta página. Vacío = no se toca.',
     /* EN: untouched — also used as the input placeholder */
@@ -1283,8 +1303,6 @@ var T = {
     desc: 'Pasa todas las páginas a otro tamaño de papel, o hazle sitio a un margen de encuadernación.',
     /* EN: New page size */
     target: 'Nuevo tamaño de página',
-    /* EN: Keep the current one */
-    keep: 'Dejar el que tiene',
     /* EN: A landscape page uses these measurements turned round, the same as the sizes in the list, so the document keeps its orientation. */
     customHint: 'Una página apaisada usa estas medidas giradas, igual que con los tamaños de la lista, ' +
                 'para que el documento conserve su orientación.',
@@ -1485,7 +1503,7 @@ function toast(m, ms){
 /* Tipo MIME deducido de la extensión del nombre de salida.
 
    Se deduce acá y no se pasa como argumento porque así no puede quedar mal en
-   ninguna de las dieciséis llamadas a bajar(). El tipo IMPORTA aunque el nombre
+   ninguna de las llamadas a bajar(), que están repartidas por todo el archivo. El tipo IMPORTA aunque el nombre
    ya traiga extensión: el escritorio respeta el atributo `download` tal cual,
    pero Android Chrome le agrega la extensión que corresponde al tipo declarado
    en el Blob. Un PNG empaquetado como PDF se descarga «pagina.png.pdf». */
@@ -1947,8 +1965,7 @@ var nivelZoom = (function(){
   } catch(e){}
   return 5;                                   /* el centro de la escala */
 })();
-/* localStorage puede lanzar excepción —modo privado, cookies bloqueadas— y un
-   ajuste de tamaño no debe voltear la herramienta, de ahí el try. */
+/* Contraparte de la lectura de arriba; el try va por lo mismo. */
 function guardaZoom(){
   try { localStorage.setItem(ZOOM_CLAVE, String(nivelZoom)); } catch(e){}
 }
@@ -2349,15 +2366,21 @@ function papelesOrdenados(){
 function etiquetaPapel(k){
   return T.paper[k] + ' (' + PAPEL[k][0] + ' × ' + PAPEL[k][1] + ' mm)';
 }
-/* Cuelga las opciones de papel en un <select> ya existente. Se usa textContent
-   y no innerHTML por la misma razón de siempre: un nombre traducido con un < no
-   puede romper la página. */
-function ponOpcionesPapel(sel, elegido){
+/* Cuelga las opciones de papel en un <select> ya existente.
+
+   `antes` permite insertarlas ANTES de una opción que ya está, que es lo que
+   necesitan los tres selectores con «Personalizado…» al final: los papeles van
+   en medio, entre la opción de arriba y esa. Sin el parámetro, cada módulo
+   repetía el mismo bucle con un insertBefore a mano.
+
+   Se usa textContent y no innerHTML por la razón de siempre: un nombre
+   traducido con un < no puede romper la página. */
+function ponOpcionesPapel(sel, elegido, antes){
   papelesOrdenados().forEach(function(k){
     var o = el('option');
     o.value = k; o.textContent = etiquetaPapel(k);
     if(k === elegido) o.selected = true;
-    sel.appendChild(o);
+    if(antes) sel.insertBefore(o, antes); else sel.appendChild(o);
   });
 }
 /* medidas de un papel en puntos, girado si se pide */
@@ -2716,11 +2739,7 @@ HERR.dividir = {
   build: function(c){
     unSoloPDF(c, function(u8, nombre, doc, host){
       var total = doc.getPageCount();
-      /* Las miniaturas van ARRIBA del todo, justo bajo «Abrir otro PDF»: se ve
-         primero el documento y después con qué manosearlo. rejilla() cuelga su
-         caja en cuanto se la llama, así que basta con llamarla temprano; el
-         arranca() que la puebla se deja al final, cuando ya existen todas las
-         variables que sus devoluciones de llamada necesitan. */
+      /* Las miniaturas van ARRIBA del todo, justo bajo «Abrir otro PDF». */
       var api = rejilla(host, u8, {});   /* sin opciones: acá solo es vista previa */
 
       var pan = el('div','panel');
@@ -2858,12 +2877,18 @@ HERR.organizar = {
       host.appendChild(info); host.appendChild(acc); host.appendChild(res);
 
       var btn = el('button','btn primary'); btn.textContent = T.organize.action;
+      var borrar;
       [[T.organize.turnLeft,  function(){ giraLote(-90); }, 'btn'],
        [T.organize.turnRight, function(){ giraLote(90);  }, 'btn'],
+       [T.organize.deleteSel, function(){
+          marcadas().forEach(function(i){ api.fuera[i] = true; });
+          api.sel = {}; api.repinta(); refresca();
+        }, 'btn'],
        [T.organize.reverse,   function(){ api.orden.reverse(); api.repinta(); refresca(); }, 'ghost'],
        [T.organize.resetAll,  function(){ api.fuera = {}; api.giro = {}; api.sel = {}; api.arranca(total); refresca(); }, 'ghost']
       ].forEach(function(x){
         var b = el('button', x[2]); b.textContent = x[0]; b.onclick = x[1]; acc.appendChild(b);
+        if(x[0] === T.organize.deleteSel) borrar = b;
       });
       host.insertBefore(filaPrimaria(btn), res);
 
@@ -2875,6 +2900,13 @@ HERR.organizar = {
         var giros  = api.orden.filter(function(i){ return api.giro[i]; }).length;
         info.textContent = fmt(T.organize.stay, quedan, total) +
           (giros ? ' · ' + giros + ' ' + plural(giros, T.organize.turned) : '') + '.';
+        /* Borrar TODO lo que queda dejaría el PDF sin páginas, y pdf-lib no
+           sabe guardar un documento vacío. Se desactiva en vez de dejar que el
+           usuario llegue al error. El title explica el porqué al pasar encima. */
+        var marc = marcadas().filter(function(i){ return !api.fuera[i]; });
+        var vacia = !marc.length || marc.length >= quedan;
+        borrar.disabled = vacia;
+        borrar.title = (marc.length && vacia) ? T.organize.cantEmpty : '';
         btn.disabled = quedan === 0;
       }
       function giraLote(g){
@@ -2979,13 +3011,7 @@ HERR.imagenes = {
     $('.lTam',pan).textContent = T.imagesToPdf.pageSize;
     $('#tam option[value=auto]',pan).textContent = T.imagesToPdf.sizeAuto;
     /* los papeles van entre «del porte de cada imagen» y «personalizado» */
-    (function(){
-      var sel = $('#tam',pan), libre = $('.oLibre',pan);
-      papelesOrdenados().forEach(function(k){
-        var o = el('option'); o.value = k; o.textContent = etiquetaPapel(k);
-        sel.insertBefore(o, libre);
-      });
-    })();
+    ponOpcionesPapel($('#tam',pan), null, $('.oLibre',pan));
     $('.oLibre',pan).textContent  = T.common.custom;
     $('.oLibre2',pan).textContent = T.common.custom;
     $('.lOri',pan).textContent = T.imagesToPdf.orientation;
@@ -3253,11 +3279,7 @@ HERR.aimagenes = {
         return cv.toDataURL('image/webp').indexOf('data:image/webp') === 0;
       })();
 
-      /* Las miniaturas van ARRIBA del todo, justo bajo «Abrir otro PDF»: se ve
-         primero el documento y después con qué manosearlo. rejilla() cuelga su
-         caja en cuanto se la llama, así que basta con llamarla temprano; el
-         arranca() que la puebla se deja al final, cuando ya existen todas las
-         variables que sus devoluciones de llamada necesitan. */
+      /* Las miniaturas van ARRIBA del todo, justo bajo «Abrir otro PDF». */
       var api = rejilla(host, u8, {seleccion:true});
       host.appendChild(mandoSeleccion(api));
       var nota = el('p','note'); nota.textContent = T.pdfToImages.noneSelected;
@@ -3664,7 +3686,11 @@ HERR.firmar = {
           api.arranca(doc.getPageCount());
         }
 
-        var ayuda = el('p','note'); ayuda.textContent = T.sign.placeHelp;
+        /* Con una sola página no hay nada que elegir, así que la frase arranca
+           directo en «Arrastra»; con varias se le antepone el paso de elegir. */
+        var ayuda = el('p','note');
+        ayuda.textContent = unaSola ? T.sign.placeHelp
+                                    : T.sign.placePick + T.sign.placeHelp.slice(1);
         zonaColoc.appendChild(ayuda);
         if(!unaSola){
           /* La rejilla es de selección única, así que elegir otra hoja descarta
@@ -3675,7 +3701,7 @@ HERR.firmar = {
         }
 
         var wrap = el('div');
-        wrap.style.cssText = 'display:flex;justify-content:center;padding:14px 0';
+        wrap.className = 'centrado';
         zonaColoc.appendChild(wrap);
 
         var ctrl = el('div','actions'), res = el('div','outs');
@@ -3710,9 +3736,11 @@ HERR.firmar = {
               cvp.width = Math.round(vp.width); cvp.height = Math.round(vp.height);
               cont.insertBefore(cvp, cont.firstChild);
               return p.render({canvasContext:cvp.getContext('2d'), viewport:vp}).promise;
-            })['catch'](function(){ cont.style.background = 'var(--sheet)'; });
+            })['catch'](function(){ cont.style.background = 'var(--papel)'; });
 
           sello = el('div','stamp');
+          /* medidas iniciales del sello, en píxeles: van en JS porque de aquí en
+             adelante las cambia el arrastre */
           sello.style.cssText = 'left:30px;top:30px;width:160px;height:60px;transform-origin:center';
           var img = el('img');
           img.src = URL.createObjectURL(new Blob([firmaPNG], {type:'image/png'}));
@@ -3872,7 +3900,6 @@ HERR.comprimir = {
           '<button class="btn" id="aTodas"></button>' +
           '<button class="btn" id="aMarcadas"></button>' +
           '<button class="ghost" id="iMarcadas"></button>' +
-          '<button class="ghost" id="iTodas"></button>' +
         '</div></div>';
       $('.lComo',pan).textContent = T.compress.how;
       $('[data-c=sinperdida]',pan).textContent = T.compress.lossless;
@@ -3882,7 +3909,6 @@ HERR.comprimir = {
       $('#aTodas',pan).textContent    = T.compress.applyAll;
       $('#aMarcadas',pan).textContent = T.compress.applySel;
       $('#iMarcadas',pan).textContent = T.compress.keepSel;
-      $('#iTodas',pan).textContent    = T.compress.keepAll;
       host.appendChild(pan);
 
       /* Cambiar de estrategia reordena media pantalla: se esconde el bloque de
@@ -3957,11 +3983,13 @@ HERR.comprimir = {
         api.repinta(); resumen();
       }
       $('#aTodas',pan).onclick    = function(){ aplica(api.orden, +rg.value); };
-      $('#iTodas',pan).onclick    = function(){ aplica(api.orden, null); };
       $('#aMarcadas',pan).onclick = function(){
         var m = marcadas(); if(!m.length) return toast(T.common.markAtLeastOne);
         aplica(m, +rg.value);
       };
+      /* Nivel `null` = no tocar esa página. Sirve para excluir del apretón las
+         hojas que no conviene degradar —una firma escaneada, un gráfico fino—
+         sin tener que reasignar el nivel a todas las demás. */
       $('#iMarcadas',pan).onclick = function(){
         var m = marcadas(); if(!m.length) return toast(T.common.markAtLeastOne);
         aplica(m, null);
@@ -4057,10 +4085,7 @@ HERR.comprimir = {
         res.innerHTML = ''; btn.disabled = true;
         if(como === 'sinperdida'){
           sinPerdida()['catch'](function(e){
-            var w = el('div','warn','<strong></strong><span class="mono"></span>');
-            $('strong', w).textContent = T.compress.failTitle;
-            $('.mono', w).textContent = String(e && e.message || e).slice(0,300);
-            res.appendChild(w);
+            cajaFallo(res, T.compress.failTitle, e);
           })['finally'](function(){ btn.disabled = false; });
           return;
         }
@@ -4146,10 +4171,7 @@ HERR.comprimir = {
           toast(fmt(T.compress.done, pct));
         })['catch'](function(e){
           caja.fin();
-          var w = el('div','warn','<strong></strong><span class="mono"></span>');
-          $('strong', w).textContent = T.compress.failTitle;
-          $('.mono', w).textContent = String(e && e.message || e).slice(0,300);
-          res.appendChild(w);
+          cajaFallo(res, T.compress.failTitle, e);
         })['finally'](function(){ btn.disabled = false; });
       };
     });
@@ -4191,12 +4213,15 @@ HERR.proteger = {
       $('.sMo',pan).textContent   = T.protect.permModify;
       host.appendChild(pan);
 
+      /* la nota explica qué implica cifrar, así que va ANTES del botón: leerla
+         después de haber pulsado llega tarde */
+      var nota = el('p','note'); nota.textContent = T.protect.note;
+      host.appendChild(nota);
+
       var res = el('div','outs'), acc = el('div','actions');
       var btn = el('button','btn primary'); btn.textContent = T.protect.action;
       acc.className = 'actions primaria'; acc.appendChild(btn);
       host.appendChild(acc); host.appendChild(res);
-      var nota = el('p','note'); nota.textContent = T.protect.note;
-      host.appendChild(nota);
 
       $('#ver',pan).onchange = function(){
         var t = this.checked ? 'text' : 'password';
@@ -4235,10 +4260,7 @@ HERR.proteger = {
           toast(T.protect.done);
         })['catch'](function(e){
           caja.fin();
-          var w = el('div','warn','<strong></strong><span class="mono"></span>');
-          $('strong', w).textContent = T.protect.failTitle;
-          $('.mono', w).textContent = String(e && e.message || e).slice(0,300);
-          res.appendChild(w);
+          cajaFallo(res, T.protect.failTitle, e);
         })['finally'](function(){ btn.disabled = false; });
       };
     });
@@ -4254,7 +4276,7 @@ HERR.desbloquear = {
   nombre: T.unlock.name, motor:true, desc: T.unlock.desc,
   build: function(c){
     var u8 = null, nombre = '';
-    var host = el('div'); host.style.cssText = 'display:flex;flex-direction:column;gap:16px';
+    var host = el('div','apilado');
 
     zonaArrastre(c, {texto:T.unlock.drop, boton:T.common.choosePDF, accept:'application/pdf,.pdf', onfiles:function(fs){
       var f = fs[0]; nombre = f.name;
@@ -4276,12 +4298,13 @@ HERR.desbloquear = {
     $('.sVer',pan).textContent = T.protect.showTyping;
     host.appendChild(pan);
 
+    var nota = el('p','note'); nota.textContent = T.unlock.note;
+    host.appendChild(nota);
+
     var acc = el('div','actions'), res = el('div','outs');
     var btn = el('button','btn primary'); btn.textContent = T.unlock.action;
     acc.className = 'actions primaria'; acc.appendChild(btn);
-      host.appendChild(acc); host.appendChild(res);
-    var nota = el('p','note'); nota.textContent = T.unlock.note;
-    host.appendChild(nota);
+    host.appendChild(acc); host.appendChild(res);
 
     $('#ver',pan).onchange = function(){ $('#pw',pan).type = this.checked ? 'text' : 'password'; };
     $('#pw',pan).addEventListener('keydown', function(e){ if(e.key === 'Enter') btn.click(); });
@@ -4313,10 +4336,7 @@ HERR.desbloquear = {
         toast(T.unlock.done);
       })['catch'](function(e){
         caja.fin();
-        var w = el('div','warn','<strong></strong><span class="mono"></span>');
-        $('strong', w).textContent = T.unlock.failTitle;
-        $('.mono', w).textContent = String(e && e.message || e).slice(0,300);
-        res.appendChild(w);
+        cajaFallo(res, T.unlock.failTitle, e);
       })['finally'](function(){ btn.disabled = false; });
     };
   }
@@ -4386,11 +4406,7 @@ HERR.texto = {
     unSoloPDF(c, function(u8, nombre, doc, host){
       var total = doc.getPageCount();
 
-      /* Las miniaturas van ARRIBA del todo, justo bajo «Abrir otro PDF»: se ve
-         primero el documento y después con qué manosearlo. rejilla() cuelga su
-         caja en cuanto se la llama, así que basta con llamarla temprano; el
-         arranca() que la puebla se deja al final, cuando ya existen todas las
-         variables que sus devoluciones de llamada necesitan. */
+      /* Las miniaturas van ARRIBA del todo, justo bajo «Abrir otro PDF». */
       var cual = 'todas';
       var api = rejilla(host, u8, {seleccion:true, capa: capaTexto, onchange: function(){ api.capas(); }});
       var mando = mandoSeleccion(api);
@@ -4405,8 +4421,19 @@ HERR.texto = {
            las miniaturas. Mismo orden que Firmar y Marca de agua. Los dos
            selectores se cuelgan más abajo, en este hueco. */
         '<div id="estilo"></div>' +
-        '<div class="field"><label class="lTxt"></label>' +
-          '<input type="text" id="txt" class="firmaViva"><span class="hint hTok"></span></div>' +
+        /* «Empezar en» va junto al texto y no con «Dónde» y «Distancia»: esos
+           dos definen la UBICACIÓN, mientras que el número inicial es parte del
+           CONTENIDO, igual que la plantilla.
+
+           Comparten fila —el número es angosto y no hay razón para que se lleve
+           un renglón entero— y en pantallas estrechas el flex-wrap de .row lo
+           baja solo. */
+        '<div class="row">' +
+          '<div class="field"><label class="lTxt"></label>' +
+            '<input type="text" id="txt" class="firmaViva"><span class="hint hTok"></span></div>' +
+          '<div class="field ini"><label class="lIni"></label>' +
+            '<input type="number" id="ini" min="0" step="1" value="1"></div>' +
+        '</div>' +
         '<div class="row">' +
           '<div class="field"><label class="lPos"></label><select id="pos">' +
             ['tl','tc','tr','bl','bc','br'].map(function(k){
@@ -4414,8 +4441,6 @@ HERR.texto = {
             }).join('') + '</select></div>' +
           '<div class="field" style="flex:0 0 auto"><label class="lIns"></label>' +
             '<input type="number" id="ins" min="0" max="80" step="1" value="12"></div>' +
-          '<div class="field" style="flex:0 0 auto"><label class="lIni"></label>' +
-            '<input type="number" id="ini" min="0" step="1" value="1"></div>' +
         '</div>' +
         '<label class="check"><input type="checkbox" id="salta"><span class="sSalta"></span></label>' +
         '<div class="field"><label class="lCual"></label><div class="opts">' +
@@ -4685,8 +4710,18 @@ HERR.agua = {
       api.arranca(total);
 
       /* ── los ajustes vigentes, leídos en un solo lugar ── */
-      function filas(){ return modo === 'mosaico' ? Math.max(1, Math.min(12, +$('#filas',pan).value || 1)) : 1; }
-      function cols(){  return modo === 'mosaico' ? Math.max(1, Math.min(12, +$('#cols',pan).value  || 1)) : 1; }
+      /* Deja un campo numérico dentro de rango y con un entero: redondea los
+         decimales, y el texto, el vacío o lo menor que el mínimo caen al mínimo.
+         Se corrige el VALOR DEL CAMPO y no solo lo que se lee al calcular, para
+         que el usuario vea de inmediato con qué se está trabajando. */
+      function sano(id, min, max){
+        var e = $('#'+id, pan), v = Math.round(parseFloat(e.value));
+        v = isNaN(v) ? min : Math.max(min, Math.min(max, v));
+        if(String(v) !== e.value) e.value = v;
+        return v;
+      }
+      function filas(){ return modo === 'mosaico' ? sano('filas', 1, 12) : 1; }
+      function cols(){  return modo === 'mosaico' ? sano('cols',  1, 12) : 1; }
       function opac(){  return (+$('#op',pan).value)/100; }
       function angulo(){ return +$('#rot',pan).value; }
       function escala(){ return (+$('#esc',pan).value)/100; }
@@ -4853,7 +4888,11 @@ HERR.agua = {
 /* ── Varias páginas por hoja ──────────────────────────────────────────────
    Compone varias páginas del original en una sola hoja de salida.
 
-   EL TAMAÑO DE LA HOJA. «El mismo del original» significa literalmente eso: la
+   EL TAMAÑO DE LA HOJA se elige entre tres cosas: el mismo del original, uno de
+   los papeles de la tabla PAPEL, o uno personalizado en milímetros. Las tres las
+   resuelve medidaHoja(), que usan tanto la vista previa como el guardado.
+
+   «El mismo del original» significa literalmente eso: la
    hoja mide lo que medía UNA página del documento y las páginas se achican para
    caber dentro. Antes componía una hoja del porte de las páginas juntas —dos al
    lado de otra daban el doble de ancho— y con un documento apaisado, como una
@@ -4889,7 +4928,8 @@ HERR.agrupar = {
               return '<option value="' + k + '"' + (k === '2' ? ' selected' : '') + '>' + k + '</option>';
             }).join('') + '</select></div>' +
           '<div class="field"><label class="lH"></label><select id="hoja">' +
-            '<option value="auto" selected></option></select></div>' +
+            '<option value="auto" selected></option>' +
+            '<option value="libre" class="oLibre"></option></select></div>' +
           '<div class="field" id="oriF"><label class="lOri"></label><div class="opts">' +
             '<button type="button" class="chip" data-o="v"></button>' +
             '<button type="button" class="chip" data-o="h"></button></div></div>' +
@@ -4898,12 +4938,22 @@ HERR.agrupar = {
           '<div class="field" style="flex:0 0 auto"><label class="lM"></label>' +
             '<input type="number" id="mar" min="0" max="60" step="1" value="8"></div>' +
         '</div>' +
+        '<div class="mm" id="tamLibre" hidden>' +
+          '<div><label class="lW"></label>' +
+            '<input type="number" id="pw" value="210" min="10" max="2000" step="1"></div>' +
+          '<div><label class="lH2"></label>' +
+            '<input type="number" id="ph" value="297" min="10" max="2000" step="1"></div>' +
+        '</div>' +
         '<label class="check"><input type="checkbox" id="marco" checked><span class="sMarco"></span></label>' +
         '<p class="note" id="res"></p>';
       $('.lN',pan).textContent = T.nup.perSheet;
       $('.lH',pan).textContent = T.nup.sheet;
       $('#hoja option[value=auto]',pan).textContent = T.nup.sameAsSource;
-      ponOpcionesPapel($('#hoja',pan));
+      $('.oLibre',pan).textContent = T.common.custom;
+      $('.lW',pan).textContent = T.common.widthMm;
+      $('.lH2',pan).textContent = T.common.heightMm;
+      /* los papeles van entre «el mismo del original» y «personalizado» */
+      ponOpcionesPapel($('#hoja',pan), null, $('.oLibre',pan));
       $('.lOri',pan).textContent = T.imagesToPdf.orientation;
       $('[data-o=v]',pan).textContent = T.imagesToPdf.portrait;
       $('[data-o=h]',pan).textContent = T.imagesToPdf.landscape;
@@ -4957,6 +5007,7 @@ HERR.agrupar = {
         /* la orientación aplica también a «el mismo del original»: se conserva
            el tamaño de la página, girado si hace falta */
         $('#oriF',pan).hidden = false;
+        $('#tamLibre',pan).hidden = $('#hoja',pan).value !== 'libre';
       }
       Array.prototype.forEach.call(pan.querySelectorAll('[data-o]'), function(ch){
         ch.onclick = function(){ orientacion = ch.dataset.o; pintaOrientacion(); pintaPrevia(); };
@@ -4972,7 +5023,8 @@ HERR.agrupar = {
                 ori: orientacion || orientacionSugerida()};
       }
 
-      /* Mismo cálculo de la hoja que usa el guardado.
+      /* Medidas de la hoja de salida. La usan LA VISTA PREVIA Y EL GUARDADO,
+         escrita una sola vez: si divergieran, la previsualización mentiría.
 
          «El mismo del original» significa literalmente eso: la hoja de salida
          mide lo que medía una página del documento, y las páginas agrupadas se
@@ -4981,8 +5033,16 @@ HERR.agrupar = {
          y con un documento apaisado, como una presentación 16:9, salía una tira
          larguísima que no corresponde a ningún papel. */
       function medidaHoja(r, primera){
-        var W = primera.width, H = primera.height;
+        if(r.hoja === 'libre'){
+          /* lo tecleado se gira según la orientación pedida, igual que un
+             tamaño de la lista */
+          var a = Math.max(10, +$('#pw',pan).value || 210) * MM_PT;
+          var b = Math.max(10, +$('#ph',pan).value || 297) * MM_PT;
+          return r.ori === 'h' ? [Math.max(a,b), Math.min(a,b)]
+                               : [Math.min(a,b), Math.max(a,b)];
+        }
         if(r.hoja !== 'auto') return papelPt(r.hoja, r.ori === 'h');
+        var W = primera.width, H = primera.height;
         return r.ori === 'h' ? [Math.max(W,H), Math.min(W,H)]
                              : [Math.min(W,H), Math.max(W,H)];
       }
@@ -5100,16 +5160,9 @@ HERR.agrupar = {
               var hojas = 0;
               for(var i = 0; i < paginas.length; i += n){
                 var tanda = paginas.slice(i, i + n);
-                /* misma regla que la vista previa: «el mismo del original»
-                   conserva el tamaño de la página, girado si se pide */
-                var p0 = tanda[0], HW, HH;
-                if(hoja === 'auto'){
-                  HW = ori === 'h' ? Math.max(p0.width, p0.height) : Math.min(p0.width, p0.height);
-                  HH = ori === 'h' ? Math.min(p0.width, p0.height) : Math.max(p0.width, p0.height);
-                } else {
-                  var d = papelPt(hoja, ori === 'h');
-                  HW = d[0]; HH = d[1];
-                }
+                /* la MISMA función que usa la vista previa */
+                var med = medidaHoja({hoja:hoja, ori:ori}, tanda[0]);
+                var HW = med[0], HH = med[1];
                 var h = dst.addPage([HW, HH]);
                 var cw = (HW - mar*2 - gap*(cols-1))/cols;
                 var ch = (HH - mar*2 - gap*(filas-1))/filas;
@@ -5179,20 +5232,13 @@ HERR.reencuadernar = {
         '<label class="check"><input type="checkbox" id="esp"><span class="sEsp"></span></label>' +
         '<span class="hint hEsp"></span>';
       $('.lT',pan).textContent = T.rebind.target;
-      $('#tam option[value=keep]',pan).textContent = T.rebind.keep;
+      $('#tam option[value=keep]',pan).textContent = T.nup.sameAsSource;
       $('.oLibre',pan).textContent = T.common.custom;
       $('.lW',pan).textContent = T.common.widthMm;
       $('.lH',pan).textContent = T.common.heightMm;
       $('.hLibre',pan).textContent = T.rebind.customHint;
-      /* los papeles van entre «dejar el que tiene» y «personalizado» */
-      (function(){
-        var sel = $('#tam',pan), libre = $('.oLibre',pan);
-        papelesOrdenados().forEach(function(k){
-          var o = el('option');
-          o.value = k; o.textContent = etiquetaPapel(k);
-          sel.insertBefore(o, libre);
-        });
-      })();
+      /* los papeles van entre «el mismo del original» y «personalizado» */
+      ponOpcionesPapel($('#tam',pan), null, $('.oLibre',pan));
       $('#tam',pan).onchange = function(){
         var libre = this.value === 'libre';
         $('#tamLibre',pan).hidden = !libre;
@@ -5892,10 +5938,33 @@ HERR.metadatos = {
 
 /* ── 4.8 Piezas compartidas ─────────────────────────────────────────────── */
 
-/* Molde de las herramientas que trabajan sobre UN PDF: zona de arrastre, lectura,
-   aviso si viene cifrado, y luego le entrega el control a la herramienta. */
+/* Caja de fallo de un motor externo: título propio de la herramienta y el
+   diagnóstico crudo del binario debajo, en monoespaciada. El mensaje viene en
+   inglés desde qpdf o Ghostscript y se muestra tal cual a propósito: es lo
+   único que permite distinguir «contraseña incorrecta» de un PDF roto, y
+   traducirlo a ciegas sería inventar. Se recorta a 300 caracteres porque esos
+   programas a veces vuelcan páginas enteras de traza. */
+function cajaFallo(host, titulo, e){
+  var w = el('div','warn','<strong></strong><span class="mono"></span>');
+  $('strong', w).textContent = titulo;
+  $('.mono', w).textContent = String(e && e.message || e).slice(0, 300);
+  host.appendChild(w);
+}
+
+/* Molde de las herramientas que trabajan sobre UN PDF. Se encarga de la zona de
+   arrastre, de leer el archivo, de rotular la barra superior, de avisar si el
+   PDF viene cifrado, y de ofrecer «Abrir otro PDF». Recién entonces le entrega
+   el control a la herramienta llamando a:
+
+     listo(u8, nombre, doc, host)
+       u8     los bytes originales, intactos
+       nombre el nombre del archivo, para armar el de salida
+       doc    el PDFDocument ya abierto — sirve para contar páginas y leer
+              metadatos, pero NO para guardar: cada guardado relee u8
+       host   el contenedor donde la herramienta arma lo suyo, justo debajo
+              del botón «Abrir otro PDF»                                      */
 function unSoloPDF(c, listo){
-  var host = el('div'); host.style.cssText = 'display:flex;flex-direction:column;gap:16px';
+  var host = el('div','apilado');
   var z = zonaArrastre(c, {texto:T.common.dropOnePDF, boton:T.common.choosePDF, accept:'application/pdf,.pdf',
     onfiles:function(fs){
       var f = fs[0];
