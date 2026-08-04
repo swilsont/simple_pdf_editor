@@ -10,7 +10,7 @@ Es la idea de [iLovePDF](https://www.ilovepdf.com/) sin el servidor: los mismos 
 
 **Un solo archivo HTML.** Lo descargas, le das doble clic y funciona. No hay `npm install`, ni build, ni servidor, ni instalador.
 
-**639 KB** (248 KB comprimidos con gzip). De eso, 513 KB son pdf-lib incrustado: el 80% del archivo es la librería que hace el trabajo pesado, y viene adentro justamente para que once de las quince herramientas funcionen sin conexión.
+**640 KB** (248 KB comprimidos con gzip). De eso, 513 KB son pdf-lib incrustado: el 80% del archivo es la librería que hace el trabajo pesado, y viene adentro justamente para que once de las quince herramientas funcionen sin conexión.
 
 **Sin frameworks.** Sin React, sin Vue, sin Bootstrap, sin jQuery. Todo el JavaScript vive en un cierre y no publica nada al ámbito global.
 
