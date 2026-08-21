@@ -68,6 +68,8 @@ Un archivo se puede soltar en cualquier parte de la ventana, no solo sobre el re
 
 Las miniaturas también usan pdf.js, pero **son opcionales**: si no está disponible, la rejilla cae a tarjetas numeradas y todas las herramientas siguen funcionando igual.
 
+**Hay un caso más que baja qpdf, y conviene conocerlo.** Muchísimos PDF —informes de laboratorio, cartolas bancarias, boletas— vienen cifrados con la contraseña en blanco: no es para pedirte una clave sino para impedir que los imprimas o los copies, y por eso se abren en cualquier lector sin preguntar nada. pdf-lib se niega a tocar cualquier documento cifrado, así que el editor lo descifra solo con la contraseña vacía, sin molestarte. Eso ocurre en cualquier herramienta y requiere bajar qpdf, pero solo con esos archivos: un PDF corriente no descarga nada.
+
 ---
 
 ## Cómo funciona por dentro
@@ -88,7 +90,7 @@ El código está comentado en detalle en `editor-pdf.html` —cerca de un tercio
 
 La interfaz está en español y toda su traducción vive en dos lugares de `editor-pdf.html`:
 
-- **Los textos que genera el JavaScript** están agrupados en un único objeto `T` al inicio del `<script>`, cada uno con su equivalente en inglés como comentario al lado. Son 358 entradas. No contienen ni una etiqueta HTML, a propósito: el marcado vive en el código, así que quien traduce no puede romper la página cerrando mal un `<span>`.
+- **Los textos que genera el JavaScript** están agrupados en un único objeto `T` al inicio del `<script>`, cada uno con su equivalente en inglés como comentario al lado. Son alrededor de 370 entradas. No contienen ni una etiqueta HTML, a propósito: el marcado vive en el código, así que quien traduce no puede romper la página cerrando mal un `<span>`.
 - **Siete frases están escritas directamente en el marcado.** Una tabla al inicio del `<body>` te dice cuáles son, dónde están y qué deben decir en inglés.
 
 Dos detalles que ahorran sorpresas. Los `{0}`, `{1}` son huecos que se rellenan en ejecución y **se pueden reordenar** al traducir. Los pares `['singular','plural']` los resuelve una función; si tu idioma necesita más formas, se cambia esa función y no el objeto.
@@ -113,13 +115,13 @@ El archivo comentado explica el *porqué* de cada decisión no obvia, no solo el
 
 **La memoria.** Un PDF con muchas imágenes se decodifica entero para trabajarlo. Documentos de cientos de megas pueden hacer sudar a un teléfono; conviene probar antes de confiar.
 
-**El texto solo llega hasta el alfabeto latino.** Las herramientas que escriben sobre la página usan las 14 tipografías estándar del PDF, que no hay que incrustar pero solo cubren WinAnsi. El español entra completo, con tildes y eñes; el chino, el árabe y el cirílico no. Los caracteres que no caben se descartan en vez de reventar a mitad de camino.
+**El texto solo llega hasta el alfabeto latino.** Las herramientas que escriben sobre la página usan las 14 tipografías estándar del PDF, que no hay que incrustar pero solo cubren WinAnsi. El español entra completo, con tildes y eñes; el chino, el árabe y el cirílico no. Los caracteres que no caben se descartan en vez de reventar a mitad de camino, y un aviso bajo el campo te dice exactamente cuáles fueron. La firma escrita es la excepción: como se dibuja sobre un lienzo y se guarda como imagen, acepta emojis y cualquier alfabeto que tenga tu sistema.
 
 **La marca de agua va siempre encima.** pdf-lib solo sabe agregar contenido, no meter algo por debajo de lo ya dibujado. Por eso la opacidad importa tanto y por defecto viene baja.
 
 **Comprimir sin pérdida no siempre gana.** Reescribe la estructura interna del archivo: hace maravillas con PDF de escáneres y sistemas antiguos —hasta un 90% en archivos con los flujos sin comprimir— y absolutamente nada con los que ya venían apretados. Cuando no gana, te devuelve tu original en vez de un archivo idéntico con otro nombre.
 
-**Los motores vienen de un CDN.** Se descargan bajo demanda desde jsDelivr, con respaldo en unpkg. Si tu red los bloquea, esas cuatro herramientas no funcionan; las otras once sí.
+**Los motores vienen de un CDN.** Se descargan bajo demanda desde jsDelivr, con respaldo en unpkg. Si tu red los bloquea, esas cuatro herramientas no funcionan, y tampoco se podrán abrir los PDF cifrados sin contraseña; el resto sí.
 
 **No es un lector ni un editor de texto.** No se puede cambiar el contenido de una página, ni editar el texto existente, ni hacer OCR. Es deliberado.
 

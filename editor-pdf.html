@@ -6,16 +6,16 @@
 <title>Editor de PDF — todo en tu navegador</title>
 <!--
   ┌────────────────────────────────────────────────────────────────────────┐
-  │  EDITOR DE PDF — quince herramientas que corren dentro del navegador    │
+  │  EDITOR DE PDF — quince herramientas que corren dentro del navegador   │
   ├────────────────────────────────────────────────────────────────────────┤
   │  QUÉ ES                                                                │
-  │  Un solo archivo HTML que edita PDF sin subirlos a ninguna parte. Se    │
-  │  abre con doble clic o se sirve como página estática; no necesita       │
+  │  Un solo archivo HTML que edita PDF sin subirlos a ninguna parte. Se   │
+  │  abre con doble clic o se sirve como página estática; no necesita      │
   │  servidor, compilación ni instalación de nada.                         │
   ├────────────────────────────────────────────────────────────────────────┤
   │  ÍNDICE                                                                │
   │    1. Estilos                                                          │
-  │    2. Marcado — al empezar el <body> va la tabla del texto fijo, que    │
+  │    2. Marcado — al empezar el <body> va la tabla del texto fijo, que   │
   │       es lo único traducible fuera del objeto T                        │
   │    3. pdf-lib, incrustado entero: 513 kB, el 80% de la versión         │
   │       minificada, que es la que se publica                             │
@@ -27,7 +27,7 @@
   │        4.5  Zona de arrastre                                           │
   ├────────────────────────────────────────────────────────────────────────┤
   │  QUÉ NECESITA INTERNET                                                 │
-  │  Once herramientas funcionan sin conexión, porque pdf-lib va adentro.   │
+  │  Once herramientas funcionan sin conexión, porque pdf-lib va adentro.  │
   │  PDF → imágenes necesita pdf.js. Comprimir, Proteger y Quitar          │
   │  contraseña necesitan un binario WebAssembly; esas tres llevan la      │
   │  insignia «motor externo» en la portada y avisan cuánto pesa antes de  │
@@ -35,7 +35,7 @@
   │  rejilla cae a tarjetas numeradas y todo lo demás sigue funcionando.   │
   ├────────────────────────────────────────────────────────────────────────┤
   │  INVARIANTES — romper cualquiera de estas rompe una promesa del        │
-  │  proyecto, no solo una función                                        │
+  │  proyecto, no solo una función                                         │
   │                                                                        │
   │  · Ningún archivo sale del navegador. No hay peticiones de subida.     │
   │  · Todo texto que ve el usuario desde JS vive en el objeto T, con su   │
@@ -55,6 +55,10 @@
   │  · Los metadatos del documento original se conservan. Las herramientas │
   │    que rearman el archivo los copian con ponMetadatos(). La única que  │
   │    los borra es la de Metadatos, que es donde el usuario lo pide.      │
+  │  · Un PDF cifrado con la contraseña VACÍA —muy común: se usa para      │
+  │    impedir imprimir o copiar, no para pedir clave— se abre solo, sin   │
+  │    molestar al usuario. Lo hace abreSinClave() bajando qpdf, y solo    │
+  │    después de que pdf-lib se negó: un PDF corriente no descarga nada.  │
   └────────────────────────────────────────────────────────────────────────┘
 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -505,7 +509,7 @@ input.colorHex{flex:0 0 auto;width:96px;font-family:var(--mono);
 
 <!-- ── 4. Aplicación ─────────────────────────────────────────────────────── -->
 <script>/*! Editor de PDF — quince herramientas para PDF que corren en tu navegador
- * MIT License · https://swilsont.github.io/simple_pdf_editor/
+ * MIT License · Copyright (c) 2026 Sebastian Wilson Traub · https://swilsont.github.io/simple_pdf_editor/
  *
  * Incrustado en este archivo:
  *   pdf-lib — MIT — https://github.com/Hopding/pdf-lib
@@ -586,8 +590,16 @@ var T = {
     pickPDFFirst: 'Elige primero un PDF',
     /* EN: Select at least one page */
     markAtLeastOne: 'Marca al menos una página',
-    /* EN: This PDF is password-protected */
+    /* EN: Unlocking the document… */
+    unlocking: 'Abriendo el documento…',
+    /* EN: This PDF has a password */
     encryptedTitle: 'Este PDF tiene contraseña',
+    /* EN: This PDF needs an external engine */
+    needsEngineTitle: 'Este PDF necesita un motor externo',
+    /* EN: It is encrypted without a password — many documents come like that, to stop them being printed or copied — and opening it requires downloading {0}, which could not be reached. Check your connection and try again. */
+    needsEngineBody: 'Está cifrado sin contraseña —muchos documentos vienen así, para impedir que se ' +
+                     'impriman o se copien— y abrirlo requiere descargar {0}, que no se pudo alcanzar. ' +
+                     'Revisa tu conexión y vuelve a intentarlo.',
     /* EN: It can't be modified while encrypted. Go through {0} first and come back with the open file. */
     encryptedBody: 'No se puede modificar mientras esté cifrado. Pasa primero por {0} y vuelve con el archivo abierto.',
     /* EN: Go to Remove password */
@@ -1898,9 +1910,22 @@ function ponMetadatos(doc, m){
   if(m.Modificacion) doc.setModificationDate(m.Modificacion);
 }
 
-/* Abre un PDF con pdf-lib. pdf-lib no sabe descifrar, así que un archivo con
-   contraseña revienta con un mensaje poco claro; acá se convierte en el código
-   'CIFRADO' para que explicaError() pueda ofrecer la salida correcta. */
+/* Abre un PDF con pdf-lib, que no sabe descifrar: cualquier archivo con /Encrypt
+   revienta con un mensaje poco claro, y acá se convierte en el código 'CIFRADO'
+   para que explicaError() ofrezca la salida correcta.
+
+   OJO con un caso que confunde: muchísimos PDF —informes de laboratorio, cartolas
+   bancarias, boletas— vienen cifrados con la contraseña de USUARIO VACÍA, solo
+   para restringir la impresión o la copia. Se abren en cualquier lector sin pedir
+   nada, así que quien los trae jura que no tienen contraseña, pero llevan /Encrypt
+   igual y pdf-lib se niega.
+
+   Se probó `ignoreEncryption:true` para saltarse el chequeo y NO sirve: pdf-lib
+   abre el documento pero no descifra los flujos, así que el archivo que sale está
+   corrupto. Medido con qpdf sobre la salida: «stream inflate: incorrect header
+   check». La única vía es descifrar antes con qpdf, y de eso se encarga
+   abreSinClave(), que unSoloPDF() llama sola cuando esta función tira
+   'CIFRADO'. */
 function abrirPDF(u8){
   return PL.PDFDocument.load(u8, ABRIR)['catch'](function(e){
     var m = String(e && e.message || e);
@@ -1915,6 +1940,16 @@ function abrirPDF(u8){
 function explicaError(e, host){
   var m = String(e && e.message || e);
   var w = el('div','warn');
+  /* No se pudo bajar el motor que abre los PDF cifrados sin contraseña. No es
+     lo mismo que 'CIFRADO': el archivo quizá se habría abierto solo, así que
+     mandarlo a escribir una clave sería mentirle. */
+  if(m === 'SIN_MOTOR'){
+    w.innerHTML = '<strong></strong><span></span>';
+    $('strong', w).textContent = T.common.needsEngineTitle;
+    $('span', w).textContent = fmt(T.common.needsEngineBody, T.engine.sizeQpdf);
+    host.appendChild(w);
+    return;
+  }
   if(m === 'CIFRADO'){
     w.innerHTML = '<strong></strong><span></span>';
     $('strong', w).textContent = T.common.encryptedTitle;
@@ -5951,13 +5986,52 @@ function cajaFallo(host, titulo, e){
   host.appendChild(w);
 }
 
+/* Intento de abrir un PDF cifrado con la contraseña VACÍA.
+
+   Muchísimos documentos —informes de laboratorio, cartolas, boletas— vienen
+   cifrados solo para restringir la impresión o la copia: la contraseña de
+   usuario está en blanco y cualquier lector los abre sin pedir nada. Quien los
+   trae jura, con razón, que no tienen contraseña.
+
+   Mandarlo a «Quitar contraseña», que escriba nada en el campo y vuelva con el
+   archivo es un rodeo absurdo cuando la clave que hace falta la sabemos: es la
+   vacía. Así que se prueba sola, y en silencio: si funciona, la herramienta
+   sigue con los bytes descifrados sin decir nada, porque al usuario le da lo
+   mismo por qué su archivo necesitaba un trámite. Si el PDF tenía clave de
+   verdad, el intento falla y ahí sí se le pide.
+
+   El precio es bajar qpdf (1,3 MB), y por eso NO se hace de entrada: solo
+   cuando pdf-lib ya se negó. Un PDF corriente no descarga nada.               */
+function abreSinClave(u8, host){
+  var caja = cajaMotor(host, T.unlock.name, T.engine.sizeQpdf);
+  return emscripten('qpdf', CDN.qpdfJs, CDN.qpdfW, caja.prog).then(function(fab){
+    caja.estado(T.common.unlocking);
+    return ejecutaWasm(fab, ['--password=', '--decrypt', '/entrada.pdf', '/salida.pdf'],
+                       {'/entrada.pdf': u8});
+  }).then(function(r){
+    caja.fin();
+    /* qpdf devuelve distinto de cero cuando la clave no era la vacía: el PDF
+       tiene contraseña de verdad y hay que pedírsela al usuario */
+    if(r.code !== 0 || !r.FS) throw new Error('CIFRADO');
+    return r.FS.readFile('/salida.pdf');
+  })['catch'](function(e){
+    caja.fin();
+    /* Los dos fallos posibles piden mensajes distintos:
+         CIFRADO    → el PDF tiene contraseña de verdad; se pide al usuario.
+         SIN_MOTOR  → no se pudo bajar qpdf. El archivo quizá se habría abierto
+                      solo, así que no corresponde decirle que tiene clave. */
+    throw String(e && e.message) === 'CIFRADO' ? e : new Error('SIN_MOTOR');
+  });
+}
+
 /* Molde de las herramientas que trabajan sobre UN PDF. Se encarga de la zona de
    arrastre, de leer el archivo, de rotular la barra superior, de avisar si el
    PDF viene cifrado, y de ofrecer «Abrir otro PDF». Recién entonces le entrega
    el control a la herramienta llamando a:
 
      listo(u8, nombre, doc, host)
-       u8     los bytes originales, intactos
+       u8     los bytes del documento. Son los originales, salvo que el PDF
+              viniera cifrado: en ese caso son los ya descifrados
        nombre el nombre del archivo, para armar el de salida
        doc    el PDFDocument ya abierto — sirve para contar páginas y leer
               metadatos, pero NO para guardar: cada guardado relee u8
@@ -5970,14 +6044,23 @@ function unSoloPDF(c, listo){
       var f = fs[0];
       f.arrayBuffer().then(function(b){
         var u8 = new Uint8Array(b);
-        abrirPDF(u8).then(function(doc){
+        function sigue(doc){
           rotulaArchivo(f.name, fmt(T.common.docSpecs, doc.getPageCount(), pesoLegible(u8.length)));
           z.hidden = true; host.innerHTML = '';
           var otro = el('button','ghost'); otro.textContent = T.common.openAnother;
           otro.onclick = function(){ rotulaArchivo('',''); host.innerHTML = ''; z.hidden = false; };
           host.appendChild(otro);
           listo(u8, f.name, doc, host);
-        })['catch'](function(e){ host.innerHTML = ''; explicaError(e, host); });
+        }
+        abrirPDF(u8).then(sigue)['catch'](function(e){
+          if(String(e && e.message) !== 'CIFRADO'){ host.innerHTML = ''; explicaError(e, host); return; }
+          /* cifrado: puede ser solo restricciones, así que se prueba en blanco */
+          host.innerHTML = '';
+          abreSinClave(u8, host).then(function(limpio){
+            u8 = limpio;
+            return abrirPDF(u8).then(sigue);
+          })['catch'](function(e2){ host.innerHTML = ''; explicaError(e2, host); });
+        });
       });
     }});
   c.appendChild(host);
