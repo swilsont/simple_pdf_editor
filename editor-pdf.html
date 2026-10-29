@@ -509,7 +509,7 @@ input.colorHex{flex:0 0 auto;width:96px;font-family:var(--mono);
 
 <!-- ── 4. Aplicación ─────────────────────────────────────────────────────── -->
 <script>/*! Editor de PDF — quince herramientas para PDF que corren en tu navegador
- * MIT License · Copyright (c) 2026 Sebastian Wilson Traub · https://swilsont.github.io/simple_pdf_editor/
+ * MIT License · https://swilsont.github.io/simple_pdf_editor/
  *
  * Incrustado en este archivo:
  *   pdf-lib — MIT — https://github.com/Hopding/pdf-lib
@@ -2740,7 +2740,9 @@ HERR.unir = {
            otro. Con Promise.all el orden final quedaría al azar. */
         return lista.reduce(function(p, it, i){
           return p.then(function(){
-            return abrirPDF(it.u8).then(function(d){
+            return abrePDFConReintento(it.u8, res).then(function(r){
+              var d = r.doc;
+              it.u8 = r.u8;                /* si venía cifrado, no se descifra dos veces */
               /* al unir varios, el resultado hereda los datos del PRIMERO: es el
                  que abre el documento y el único criterio que no es arbitrario */
               if(i === 0) ponMetadatos(out, leeMetadatos(d));
@@ -6010,10 +6012,21 @@ function abreSinClave(u8, host){
                        {'/entrada.pdf': u8});
   }).then(function(r){
     caja.fin();
-    /* qpdf devuelve distinto de cero cuando la clave no era la vacía: el PDF
-       tiene contraseña de verdad y hay que pedírsela al usuario */
-    if(r.code !== 0 || !r.FS) throw new Error('CIFRADO');
-    return r.FS.readFile('/salida.pdf');
+    /* NO se mira el código de salida, se mira si salió un archivo.
+
+       qpdf distingue 0 (bien), 3 (bien, pero con advertencias sobre rarezas
+       del PDF de entrada) y 2 (error de verdad). Un 3 es un éxito: una boleta
+       con una clave duplicada en un diccionario devuelve 3 y un archivo
+       perfectamente utilizable. Rechazar todo lo que no fuera 0 hacía que esos
+       documentos se reportaran como «tiene contraseña», que es justo el error
+       que esto venía a resolver.
+
+       Cuando la clave de verdad no es la vacía, qpdf no escribe nada: la
+       ausencia de salida es la señal fiable. */
+    var out = null;
+    try { out = r.FS && r.FS.readFile('/salida.pdf'); } catch(e){}
+    if(!out || !out.length) throw new Error('CIFRADO');
+    return out;
   })['catch'](function(e){
     caja.fin();
     /* Los dos fallos posibles piden mensajes distintos:
@@ -6022,6 +6035,29 @@ function abreSinClave(u8, host){
                       solo, así que no corresponde decirle que tiene clave. */
     throw String(e && e.message) === 'CIFRADO' ? e : new Error('SIN_MOTOR');
   });
+}
+
+/* Abre un PDF y, si viene cifrado, lo reintenta con la contraseña vacía.
+
+   Este es el punto por el que DEBE pasar toda apertura de un PDF: si una
+   herramienta llama a abrirPDF() directo, se salta el reintento y rechaza
+   archivos que se abrirían sin problema. Pasó con Unir, que al recibir varios
+   archivos no usa unSoloPDF() y tenía su propia llamada suelta.
+
+   Devuelve { doc, u8 }. Los bytes pueden NO ser los que entraron: si hubo que
+   descifrar, son los nuevos, y quien llama tiene que quedarse con esos, porque
+   los originales siguen cifrados y no sirven para guardar.
+
+   `host` es donde se cuelga la caja de progreso mientras baja qpdf.          */
+function abrePDFConReintento(u8, host){
+  return abrirPDF(u8).then(function(doc){ return {doc: doc, u8: u8}; })
+    ['catch'](function(e){
+      if(String(e && e.message) !== 'CIFRADO') throw e;
+      /* cifrado: puede ser solo restricciones, así que se prueba en blanco */
+      return abreSinClave(u8, host).then(function(limpio){
+        return abrirPDF(limpio).then(function(doc){ return {doc: doc, u8: limpio}; });
+      });
+    });
 }
 
 /* Molde de las herramientas que trabajan sobre UN PDF. Se encarga de la zona de
@@ -6052,15 +6088,10 @@ function unSoloPDF(c, listo){
           host.appendChild(otro);
           listo(u8, f.name, doc, host);
         }
-        abrirPDF(u8).then(sigue)['catch'](function(e){
-          if(String(e && e.message) !== 'CIFRADO'){ host.innerHTML = ''; explicaError(e, host); return; }
-          /* cifrado: puede ser solo restricciones, así que se prueba en blanco */
-          host.innerHTML = '';
-          abreSinClave(u8, host).then(function(limpio){
-            u8 = limpio;
-            return abrirPDF(u8).then(sigue);
-          })['catch'](function(e2){ host.innerHTML = ''; explicaError(e2, host); });
-        });
+        abrePDFConReintento(u8, host).then(function(r){
+          u8 = r.u8;                       /* descifrados, si hizo falta */
+          sigue(r.doc);
+        })['catch'](function(e){ host.innerHTML = ''; explicaError(e, host); });
       });
     }});
   c.appendChild(host);
